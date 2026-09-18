@@ -18,13 +18,14 @@ docs ──► doc-to-skill ──► SKILL.md (with UNKNOWNs) ──► close-g
 | `codebase-mine` | Read the backend checkout (routes → Zod → controllers → SQL) after confirming `main` is current |
 | `api-verify` | Probe the running backend with the MCP tools; capture real envelopes and error codes |
 | `drive-collect` | Find dependent reference docs on Google Drive and stage them |
-| `forge-setup` | Collect your backend URL, dev token, and checkout path by asking — runs itself when something is missing |
+| `forge-setup` | Prompt you for your backend URL, dev token, and checkout path — runs itself when something is missing |
 
 ## MCP server (`skill-forge`, TypeScript, stdio)
 | Tool | What it does |
 |---|---|
-| `forge_config_status` | What you have configured, where each value came from, what is missing — never returns the token |
-| `forge_config_set` | Store backend URL / dev token / checkout path; validates each before writing |
+| `forge_config_status` | What is available, where each value came from, what is missing — never returns the token |
+| `forge_config_collect` | Prompt you for missing settings, one input field at a time, in your editor |
+| `forge_config_set` | Store a value already in hand; validates each before applying |
 | `forge_config_clear` | Forget one setting or all of them |
 | `forge_health` | Reachability, health endpoint, token acceptance, served OpenAPI discovery |
 | `forge_request` | Authenticated request to the backend; relative paths only; token auto-attached and redacted |
@@ -40,19 +41,24 @@ docs ──► doc-to-skill ──► SKILL.md (with UNKNOWNs) ──► close-g
 
 There is nothing to build. `mcp-server/dist/index.js` is committed as a single dependency-free bundle, so the
 server starts on any machine with Node 18+ straight from a sync or clone — no `npm install`, nothing to put in
-your environment, and no file to edit. The first time a skill needs your backend, Claude asks for what it needs and stores it:
+your environment, and no file to edit. The first time a skill needs your backend, the plugin **prompts you for it
+directly** — a real input field in your editor, one setting at a time, filled in by you rather than typed into the
+chat:
 
-> **Claude:** What URL is your Pivotly backend running on? (default `http://localhost:3000`)
+> **Backend URL** — Include the scheme and port, e.g. `http://localhost:3000`. Must be a local/dev host.
+> `[ http://localhost:3000 ]`
 
-Run `/skill-forge-setup` to do all of it up front, or just start working and answer when asked. Values land in `~/.pivotly-skill-forge/config.json` (mode `600`, outside the repo) and take effect immediately — no restart.
+Run `/skill-forge-setup` to do all of it up front, or just start working and answer when prompted.
 
-| Setting | Asked for when | Example |
-|---|---|---|
-| Backend URL | Probing the API | `http://localhost:3000` |
-| Dev bearer token | Authenticated requests | `eyJ…` |
-| Backend checkout path | Mining the repo | `/Users/me/src/pivotly-core` |
+| Setting | Prompted for | Stored where | Example |
+|---|---|---|---|
+| Backend URL | Once | `~/.pivotly-skill-forge/config.json`, mode `600` | `http://localhost:3000` |
+| Dev bearer token | **Once per session** | **Nowhere — memory only** | `eyJ…` |
+| Backend checkout path | Once | `~/.pivotly-skill-forge/config.json`, mode `600` | `/Users/me/src/pivotly-core` |
 
-To change one later, just say so ("point it at port 4000", "I rotated my token"). `PIVOTLY_API_BASE_URL`, `PIVOTLY_MCP_TOKEN`, and `PIVOTLY_BACKEND_PATH` still work as a fallback for CI, but a stored value wins.
+To change one later, just say so ("point it at port 4000", "I rotated my token") and you get the prompt again.
+`PIVOTLY_API_BASE_URL`, `PIVOTLY_MCP_TOKEN`, and `PIVOTLY_BACKEND_PATH` still work as a fallback for CI, but an
+interactively provided value wins.
 
 ## Prerequisites for a full gap-closing run
 - Backend checkout on `main`, pulled (the hook and `forge_git_state` will nag otherwise).
@@ -76,9 +82,10 @@ first message of the session instead of leaving you to guess.
 The skills are standard Agent Skills (`SKILL.md`) and work in Claude Code, Cowork, Cursor, Copilot, Codex. The MCP server is standard MCP and can be registered in any MCP-capable client. The `.claude-plugin/` + `.mcp.json` wrapper is Claude-specific.
 
 ## Security notes
-- Settings are per developer, stored in your home directory at mode `600`. Nothing secret is ever written into this repo — clone it, and you share no credentials.
+- **The dev token is never written to disk.** You are prompted for it once per session and it lives only in the MCP server process's memory, so there is no file to leak, sync to a backup, or rotate out of. A token left in the config file by an earlier version is deleted automatically on startup.
+- Every setting is collected through an input prompt (MCP elicitation), not by asking you to type it into the conversation — so the token goes client → server and need never enter the chat transcript. The prompt field is not masked (MCP form elicitation has no password type), which is one more reason to use a dev credential and nothing else. If your host does not support prompts, the plugin says so and falls back to asking, warning you that the value will be in the transcript.
+- The backend URL and checkout path are per developer, stored in your home directory at mode `600`. Nothing secret is ever written into this repo — clone it, and you share no credentials.
 - The token is read only by the MCP server process and redacted from every tool output. No tool returns it; `forge_config_status` shows it as `••••1234`.
 - `forge_request` refuses absolute URLs, so the token can only ever go to the configured backend.
 - `forge_config_set` refuses a non-local backend URL unless you confirm it is a dev environment, so a stray paste cannot point the probes at production.
 - `forge_git_state` and the hook never mutate the repo.
-- The token is dev-only and you paste it into the conversation, so it lands in that transcript. That is the accepted trade-off for a developer tool. If you would rather it did not, write `{"token": "…"}` into `~/.pivotly-skill-forge/config.json` yourself — everything else still works by asking.

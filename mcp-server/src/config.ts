@@ -9,6 +9,9 @@
  * The file wins so that a value the developer just set takes effect immediately, even if
  * a stale variable is still exported in their shell.
  *
+ * The token is the exception and is never persisted: it resolves from session memory →
+ * environment variable only. See PERSISTED_KEYS.
+ *
  * Nothing here is cached: every tool call re-reads the file, so configuring and using a
  * value in the same session works without restarting the server.
  */
@@ -21,7 +24,33 @@ export type ConfigKey = "api_base_url" | "token" | "backend_path";
 
 export const CONFIG_KEYS: ConfigKey[] = ["api_base_url", "token", "backend_path"];
 
+/**
+ * The token is deliberately absent: it is never written to disk. It lives only in this
+ * process's memory for the lifetime of the session, so the developer is prompted for it
+ * once per session and nothing token-shaped ever lands on the filesystem to leak, sync,
+ * back up, or need rotating.
+ */
+export const PERSISTED_KEYS: ConfigKey[] = ["api_base_url", "backend_path"];
+
 export type StoredConfig = Partial<Record<ConfigKey, string>>;
+
+/* ---------------------------------------------------------------- */
+/* Session-only token                                                */
+/* ---------------------------------------------------------------- */
+
+let sessionToken = "";
+
+export function setSessionToken(value: string): void {
+  sessionToken = value.trim();
+}
+
+export function clearSessionToken(): void {
+  sessionToken = "";
+}
+
+export function getSessionToken(): string {
+  return sessionToken;
+}
 
 export const DEFAULT_API_BASE_URL = "http://localhost:3000";
 
@@ -36,7 +65,7 @@ export const CONFIG_PATH =
   process.env.PIVOTLY_SKILL_FORGE_CONFIG?.trim() ||
   join(homedir(), ".pivotly-skill-forge", "config.json");
 
-export type Source = "config" | "env" | "default" | "unset";
+export type Source = "config" | "session" | "env" | "default" | "unset";
 
 export interface Resolved {
   value: string;
@@ -75,7 +104,9 @@ export function readStored(): StoredConfig {
 export function writeStored(next: StoredConfig): void {
   mkdirSync(dirname(CONFIG_PATH), { recursive: true });
   const body: StoredConfig = {};
-  for (const k of CONFIG_KEYS) if (next[k]) body[k] = next[k];
+  // PERSISTED_KEYS, not CONFIG_KEYS: a token passed in here is dropped rather than written.
+  // This is the single chokepoint for writes, so no caller can persist one by mistake.
+  for (const k of PERSISTED_KEYS) if (next[k]) body[k] = next[k];
   writeFileSync(CONFIG_PATH, `${JSON.stringify(body, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   try {
     chmodSync(CONFIG_PATH, 0o600); // no-op on Windows; matters on POSIX where the file pre-existed
@@ -93,17 +124,48 @@ function resolveOne(key: ConfigKey, stored: StoredConfig, fallback?: string): Re
   return { value: "", source: "unset" };
 }
 
+/**
+ * Token resolution, deliberately not via resolveOne: the config file is not a source.
+ * Session memory first (what the developer entered this session), then the env var, which
+ * is kept only so CI can run unattended.
+ */
+function resolveToken(): Resolved {
+  if (sessionToken) return { value: sessionToken, source: "session" };
+  const fromEnv = process.env[ENV_FALLBACK.token]?.trim();
+  if (fromEnv) return { value: fromEnv, source: "env" };
+  return { value: "", source: "unset" };
+}
+
 export function loadConfig(): Config {
   const stored = readStored();
   const api = resolveOne("api_base_url", stored, DEFAULT_API_BASE_URL);
   return {
     apiBaseUrl: { value: api.value.replace(/\/+$/, ""), source: api.source },
-    token: resolveOne("token", stored),
+    token: resolveToken(),
     backendPath: (() => {
       const r = resolveOne("backend_path", stored);
       return r.value ? { value: expandHome(r.value), source: r.source } : r;
     })(),
   };
+}
+
+/**
+ * Tokens written by an earlier version of this plugin are removed from disk on startup.
+ * Upgrading should not silently leave a credential lying in a file the developer was told
+ * is no longer used. Returns true when one was actually found and removed.
+ */
+export function purgeLegacyStoredToken(): boolean {
+  try {
+    if (!existsSync(CONFIG_PATH)) return false;
+    const parsed = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+    const legacy = (parsed as Record<string, unknown>).token;
+    if (typeof legacy !== "string" || !legacy.trim()) return false;
+    writeStored(readStored()); // writeStored drops the token by construction
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /* ---------------------------------------------------------------- */

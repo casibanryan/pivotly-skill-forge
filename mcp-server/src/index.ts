@@ -5,16 +5,20 @@
  * (reading code, writing skills) is done by the host's own file tools.
  *
  *   forge_config_status — what is configured, where each value came from, what is missing
- *   forge_config_set    — store backend URL / token / repo path, collected interactively
+ *   forge_config_collect— prompt the developer for missing settings, one input at a time
+ *   forge_config_set    — store backend URL / repo path; token goes to session memory only
  *   forge_config_clear  — forget one or all stored values
  *   forge_health        — is the backend up, what version, does it serve an API spec
  *   forge_request       — authenticated HTTP request to the backend; token never leaves this process
  *   forge_openapi       — fetch + normalize the served OpenAPI/Swagger document
  *   forge_git_state     — branch, dirty status, commits behind origin/main for the backend repo
  *
- * Configuration lives in ~/.pivotly-skill-forge/config.json (see config.ts) and is collected
- * by Claude on first use. Environment variables of the same name still work as a fallback for
- * CI, but no developer has to set one to install the plugin.
+ * The backend URL and checkout path live in ~/.pivotly-skill-forge/config.json (see config.ts).
+ * The dev token never does: it is prompted for once per session and held in this process's
+ * memory, so nothing token-shaped is ever written to disk. Every setting is collected through
+ * a real input prompt (MCP elicitation), not by asking the model to request it in chat.
+ * Environment variables of the same name still work as a fallback for CI, but no developer has
+ * to set one to install the plugin.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -26,8 +30,12 @@ import {
   CONFIG_KEYS,
   CONFIG_PATH,
   DEFAULT_API_BASE_URL,
+  clearSessionToken,
+  getSessionToken,
   loadConfig,
+  purgeLegacyStoredToken,
   readStored,
+  setSessionToken,
   tokenHint,
   validateApiBaseUrl,
   validateBackendPath,
@@ -52,7 +60,8 @@ const SPEC_PATHS = [
 const HEALTH_PATHS = ["/health", "/healthz", "/api/health", "/api/v3/health", "/"];
 
 const SETUP_HINT =
-  "Collect it by asking the user in conversation; /skill-forge-setup walks through every setting. Nothing needs to go in the environment or into a file by hand.";
+  "Call forge_config_collect to prompt the developer for it directly, one input at a time — do not ask for values in conversation, " +
+  "and never tell them to set an environment variable or edit a file. /skill-forge-setup walks through every setting.";
 
 type Json = Record<string, unknown> | unknown[] | string | number | boolean | null;
 
@@ -132,7 +141,12 @@ async function configReport(): Promise<Record<string, unknown>> {
   }
 
   const notes: string[] = [];
-  if (missing.includes("token")) notes.push("No token stored: forge_request and authenticated probes are unavailable.");
+  if (missing.includes("token")) {
+    notes.push(
+      "No token this session: forge_request and authenticated probes are unavailable. The token is never stored on disk, " +
+        "so it is collected once per session — call forge_config_collect(keys: [\"token\"]).",
+    );
+  }
   if (missing.includes("backend_path")) notes.push("No backend repo path stored: forge_git_state and codebase-mine are unavailable.");
   if (cfg.apiBaseUrl.source === "default") {
     notes.push(`No backend URL stored; using the default ${DEFAULT_API_BASE_URL}. Confirm it with the user if a probe fails.`);
@@ -141,7 +155,13 @@ async function configReport(): Promise<Record<string, unknown>> {
   return {
     config_path: CONFIG_PATH,
     api_base_url: { value: cfg.apiBaseUrl.value, source: cfg.apiBaseUrl.source },
-    token: { configured: Boolean(cfg.token.value), hint: tokenHint(cfg.token.value) || undefined, source: cfg.token.source },
+    token: {
+      configured: Boolean(cfg.token.value),
+      hint: tokenHint(cfg.token.value) || undefined,
+      source: cfg.token.source,
+      persisted: false,
+      scope: "session — held in the server process only, never written to disk, gone when the session ends",
+    },
     backend_path: backend,
     missing,
     notes,
@@ -150,6 +170,108 @@ async function configReport(): Promise<Record<string, unknown>> {
 }
 
 const server = new McpServer({ name: "pivotly-skill-forge", version: "0.2.0" });
+
+/* ------------------------------------------------------------------ */
+/* Interactive prompts (MCP elicitation)                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every setting is collected through a real input prompt in the host UI rather than by
+ * asking the model to request it in prose. That matters most for the token: a value typed
+ * into an elicitation form travels client → server over the protocol, so it need never
+ * enter the model's context or the chat transcript, whereas "paste your token in chat"
+ * always lands in both.
+ *
+ * The MCP form schema has no masked/password field type, and the spec discourages using
+ * form mode for credentials for that reason — but the alternative here is strictly worse,
+ * so the field carries an explicit warning in its description instead.
+ *
+ * One field per call, deliberately: the developer answers one question at a time.
+ */
+
+type PromptKey = ConfigKey;
+
+interface Prompt {
+  message: string;
+  title: string;
+  description: string;
+  format?: "uri";
+  withDefault?: () => string | undefined;
+}
+
+const PROMPTS: Record<PromptKey, Prompt> = {
+  api_base_url: {
+    message: "Which URL is your Pivotly backend running on?",
+    title: "Backend URL",
+    description: `Include the scheme and port, e.g. ${DEFAULT_API_BASE_URL}. Must be a local/dev host — never production.`,
+    format: "uri",
+    withDefault: () => DEFAULT_API_BASE_URL,
+  },
+  token: {
+    message: "Paste your Pivotly dev bearer token.",
+    title: "Dev bearer token",
+    description:
+      "Held in the skill-forge server's memory for this session only — never written to disk and never echoed back. " +
+      "This field is not masked, so nobody should use a production credential here.",
+  },
+  backend_path: {
+    message: "Where is your Pivotly backend git checkout?",
+    title: "Backend checkout path",
+    description: "Absolute path to the directory containing .git, e.g. C:\\Users\\you\\dev\\pivotly-core. ~, /c/… and /mnt/c/… are accepted.",
+  },
+};
+
+function clientSupportsElicitation(): boolean {
+  try {
+    return Boolean(server.server.getClientCapabilities()?.elicitation);
+  } catch {
+    return false;
+  }
+}
+
+type PromptOutcome =
+  | { status: "value"; value: string }
+  | { status: "declined" | "cancelled" }
+  | { status: "unsupported"; reason: string };
+
+/** Validate a prompted value with the same rules forge_config_set applies. */
+function validateFor(key: PromptKey, value: string) {
+  if (key === "api_base_url") return validateApiBaseUrl(value, false);
+  if (key === "token") return validateToken(value);
+  return validateBackendPath(value);
+}
+
+/** Ask the developer for one value. Never throws; an unsupporting client is a normal outcome. */
+async function promptFor(key: PromptKey, retryError?: string): Promise<PromptOutcome> {
+  if (!clientSupportsElicitation()) {
+    return { status: "unsupported", reason: "This host does not support MCP elicitation prompts." };
+  }
+  const p = PROMPTS[key];
+  const schema: Record<string, unknown> = {
+    type: "string",
+    title: p.title,
+    description: retryError ? `${retryError} — ${p.description}` : p.description,
+    minLength: 1,
+  };
+  if (p.format) schema.format = p.format;
+  const def = p.withDefault?.();
+  if (def) schema.default = def;
+
+  try {
+    const res = await server.server.elicitInput({
+      mode: "form",
+      message: retryError ? `${retryError}\n\n${p.message}` : p.message,
+      requestedSchema: { type: "object", properties: { [key]: schema as never }, required: [key] },
+    });
+    if (res.action !== "accept") return { status: res.action === "decline" ? "declined" : "cancelled" };
+    const raw = (res.content as Record<string, unknown> | undefined)?.[key];
+    if (typeof raw !== "string" || !raw.trim()) return { status: "cancelled" };
+    return { status: "value", value: raw.trim() };
+  } catch (e) {
+    // -32601 "Method not found" is what a client that never declared the capability returns.
+    return { status: "unsupported", reason: `Prompt failed: ${String(e)}` };
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* forge_config_status                                                 */
@@ -166,13 +288,13 @@ server.tool(
 /* ------------------------------------------------------------------ */
 server.tool(
   "forge_config_set",
-  "Store one or more skill-forge settings for this developer, collected by asking them in conversation — no environment variables, no file editing. Each value is validated before it is written (the URL is parsed and must be a local/dev host; backend_path must exist and be a git checkout) and takes effect immediately with no restart. The token is written to a private file and is never echoed back. Ask for values one at a time, and only for the settings the current task actually needs.",
+  "Store one or more skill-forge settings for this developer, collected by asking them in conversation — no environment variables, no file editing. Each value is validated before it is written (the URL is parsed and must be a local/dev host; backend_path must exist and be a git checkout) and takes effect immediately with no restart. The token is held in memory for this session only and is never written to disk or echoed back. Prefer forge_config_collect, which prompts the developer directly; use this tool when you already have a value in hand.",
   {
     api_base_url: z.string().optional().describe("Base URL of the developer's running Pivotly backend, e.g. http://localhost:3000"),
     token: z
       .string()
       .optional()
-      .describe("Dev bearer token for that backend. Stored in the plugin's private config file (mode 600) and redacted from every tool output."),
+      .describe("Dev bearer token for that backend. Kept in the server process for this session only — never written to disk — and redacted from every tool output."),
     backend_path: z.string().optional().describe("Absolute path to the local Pivotly backend git checkout"),
     allow_remote: z
       .boolean()
@@ -206,8 +328,9 @@ server.tool(
       const v = validateToken(token);
       if (!v.ok) rejected.push(v.error as string);
       else {
-        stored.token = v.value;
-        applied.push(`token = ${tokenHint(v.value as string)}`);
+        // Session memory, never `stored` — the token must not reach writeStored at all.
+        setSessionToken(v.value as string);
+        applied.push(`token = ${tokenHint(v.value as string)} (this session only, not written to disk)`);
       }
     }
 
@@ -244,11 +367,131 @@ server.tool(
 );
 
 /* ------------------------------------------------------------------ */
+/* forge_config_collect                                                */
+/* ------------------------------------------------------------------ */
+server.tool(
+  "forge_config_collect",
+  "Collect skill-forge settings by prompting the developer directly, one input at a time, in the host's own UI. This is the preferred way to set anything up: call it instead of asking the user for values in conversation. By default it prompts only for what is missing — the backend URL, the dev token (session-only), and the backend checkout path. Each answer is validated as it arrives and a rejected value is re-prompted once. Returns what was collected; never returns the token.",
+  {
+    keys: z
+      .array(z.enum(["api_base_url", "token", "backend_path"]))
+      .optional()
+      .describe("Which settings to prompt for, in this order. Omit to prompt for everything not already available."),
+    force: z
+      .boolean()
+      .default(false)
+      .describe("Prompt even for settings that already have a value — use when the developer wants to change one (rotated token, different port, moved checkout)."),
+  },
+  async ({ keys, force }) => {
+    const cfg = loadConfig();
+    const have: Record<ConfigKey, boolean> = {
+      // A default-sourced URL is not something the developer chose, so it still counts as missing.
+      api_base_url: cfg.apiBaseUrl.source !== "default" && cfg.apiBaseUrl.source !== "unset",
+      token: Boolean(cfg.token.value),
+      backend_path: Boolean(cfg.backendPath.value),
+    };
+    const order: ConfigKey[] = keys?.length ? (keys as ConfigKey[]) : ["api_base_url", "token", "backend_path"];
+    const wanted = force ? order : order.filter((k) => !have[k]);
+
+    if (!wanted.length) {
+      return text({
+        prompted: [],
+        note: "Everything these settings cover is already available this session. Pass force: true to change one.",
+        config: await configReport(),
+      });
+    }
+
+    if (!clientSupportsElicitation()) {
+      return text({
+        error: "This host does not support input prompts (MCP elicitation).",
+        needed: wanted,
+        next_action:
+          "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. " +
+          "Do not tell them to set an environment variable or edit a file.",
+        config: await configReport(),
+      });
+    }
+
+    const stored: StoredConfig = readStored();
+    const collected: string[] = [];
+    const rejected: string[] = [];
+    const skipped: string[] = [];
+    let persistNeeded = false;
+    let stoppedAt: string | undefined;
+
+    for (const key of wanted) {
+      let outcome = await promptFor(key);
+
+      // One retry, carrying the validation error into the prompt so the developer sees why.
+      if (outcome.status === "value") {
+        const first = validateFor(key, outcome.value);
+        if (!first.ok) outcome = await promptFor(key, first.error);
+      }
+
+      if (outcome.status !== "value") {
+        if (outcome.status === "unsupported") {
+          stoppedAt = `${key}: ${outcome.reason}`;
+        } else {
+          skipped.push(`${key} (${outcome.status})`);
+          stoppedAt = `The developer ${outcome.status === "declined" ? "declined" : "dismissed"} the ${key} prompt.`;
+        }
+        break;
+      }
+
+      const v = validateFor(key, outcome.value);
+      if (!v.ok) {
+        rejected.push(v.error as string);
+        continue;
+      }
+
+      if (key === "token") {
+        setSessionToken(v.value as string);
+        collected.push(`token = ${tokenHint(v.value as string)} (this session only, not written to disk)`);
+      } else if (key === "backend_path") {
+        if (!(await isGitRepo(v.value as string))) {
+          rejected.push(`${v.value} exists but is not a git checkout — ask for the directory containing .git.`);
+          continue;
+        }
+        stored.backend_path = v.value;
+        persistNeeded = true;
+        collected.push(`backend_path = ${v.value}`);
+      } else {
+        stored.api_base_url = v.value;
+        persistNeeded = true;
+        collected.push(`api_base_url = ${v.value}`);
+      }
+    }
+
+    if (persistNeeded) {
+      try {
+        writeStored(stored);
+      } catch (e) {
+        return text({ error: `Could not write ${CONFIG_PATH}: ${String(e)}`, collected, rejected });
+      }
+    }
+
+    return text({
+      collected,
+      rejected: rejected.length ? rejected : undefined,
+      skipped: skipped.length ? skipped : undefined,
+      stopped: stoppedAt,
+      saved_to: persistNeeded ? CONFIG_PATH : undefined,
+      config: await configReport(),
+      next_action: rejected.length
+        ? "Tell the developer in plain language what was rejected, then call forge_config_collect again for that key with force: true."
+        : stoppedAt
+          ? "Ask the developer whether they want to continue; re-run forge_config_collect when they do."
+          : "Verify with forge_health (URL/token) and forge_git_state (checkout path).",
+    });
+  },
+);
+
+/* ------------------------------------------------------------------ */
 /* forge_config_clear                                                  */
 /* ------------------------------------------------------------------ */
 server.tool(
   "forge_config_clear",
-  "Forget stored skill-forge settings — one key, or all of them. Use it when the developer rotates their token, switches backend checkouts, or wants the machine left clean. Only touches this plugin's own config file; never the backend or the repo.",
+  "Forget skill-forge settings — one key, or all of them. Clearing the token just drops it from session memory (it was never on disk). Use it when the developer rotates their token, switches backend checkouts, or wants the machine left clean. Only touches this plugin's own config file; never the backend or the repo.",
   {
     keys: z
       .array(z.enum(["api_base_url", "token", "backend_path"]))
@@ -258,8 +501,18 @@ server.tool(
   async ({ keys }) => {
     const target = (keys?.length ? keys : CONFIG_KEYS) as ConfigKey[];
     const stored = readStored();
-    const removed = target.filter((k) => stored[k] !== undefined);
-    for (const k of target) delete stored[k];
+    const removed: ConfigKey[] = [];
+
+    // The token lives in memory, not in the file, so clearing it is a separate action.
+    if (target.includes("token")) {
+      if (getSessionToken()) removed.push("token");
+      clearSessionToken();
+    }
+    for (const k of target) {
+      if (k === "token") continue;
+      if (stored[k] !== undefined) removed.push(k);
+      delete stored[k];
+    }
     try {
       writeStored(stored);
     } catch (e) {
@@ -268,6 +521,7 @@ server.tool(
     return text({
       cleared: removed,
       not_stored: target.filter((k) => !removed.includes(k)),
+      note: removed.includes("token") ? "The token was only ever in memory; nothing token-shaped had to be erased from disk." : undefined,
       config: await configReport(),
     });
   },
@@ -522,6 +776,16 @@ function pick(h: Record<string, string>, keys: string[]) {
   const out: Record<string, string> = {};
   for (const k of keys) if (h[k]) out[k] = h[k];
   return out;
+}
+
+// Earlier versions of this plugin wrote the token into config.json. Upgrading must not leave
+// a credential behind in a file the developer is now told is never used, so remove it before
+// serving anything. stderr, never stdout: stdout is the JSON-RPC transport.
+if (purgeLegacyStoredToken()) {
+  console.error(
+    "[skill-forge] Removed a dev token left in the config file by an earlier version — tokens are now session-only. " +
+      "You will be prompted for it once per session.",
+  );
 }
 
 const transport = new StdioServerTransport();

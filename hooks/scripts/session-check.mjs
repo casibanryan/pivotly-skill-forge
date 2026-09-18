@@ -100,21 +100,28 @@ try {
   const token = value("token", "PIVOTLY_MCP_TOKEN");
   const apiBaseUrl = value("api_base_url", "PIVOTLY_API_BASE_URL");
 
+  // The token is deliberately not in this list. It is never written to disk — it is prompted
+  // for once per session and held in the MCP server's memory — so its absence here is the
+  // normal state at the start of every session, not a configuration problem to report.
   const missing = [];
   if (!apiBaseUrl) missing.push("backend URL");
-  if (!token) missing.push("dev token");
   if (!backendPath) missing.push("backend repo path");
 
-  if (missing.length === 3) {
+  say(
+    "The dev token is session-scoped and never stored: prompt for it with forge_config_collect(keys: [\"token\"]) " +
+      "when a task first needs an authenticated call. Do not ask the developer to paste it into the chat.",
+  );
+
+  if (missing.length === 2) {
     say(
       "Not configured yet. On the first request that needs the backend, run the forge-setup skill " +
-        "(or /skill-forge-setup) to collect the settings in conversation and store them with forge_config_set. " +
-        "Do not ask the developer to set environment variables or edit files.",
+        "(or /skill-forge-setup), which calls forge_config_collect to prompt the developer for each setting " +
+        "one at a time. Do not ask for values in conversation, set environment variables, or edit files.",
     );
   } else if (missing.length) {
     say(
       `Partially configured — still missing: ${missing.join(", ")}. ` +
-        "Collect what a task needs with forge_config_set when it needs it; /skill-forge-setup covers all of them.",
+        "Prompt for what a task needs with forge_config_collect when it needs it; /skill-forge-setup covers all of them.",
     );
   }
 
