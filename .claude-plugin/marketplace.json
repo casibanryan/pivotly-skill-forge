@@ -1,7 +1,7 @@
 {
-  "name": "pivotly",
+  "name": "pivotly-skills",
   "owner": {
-    "name": "Pivotly",
+    "name": "resty",
     "url": "https://github.com/casibanryan/pivotly-skill-forge"
   },
   "description": "Pivotly's internal Claude Code plugins.",
@@ -11,17 +11,11 @@
       "source": "./",
       "description": "Generate AI-client skills from Pivotly reference docs, then close the gaps using the local backend codebase, the running API, and org documents on Google Drive.",
       "author": {
-        "name": "Pivotly"
+        "name": "resty"
       },
       "homepage": "https://github.com/casibanryan/pivotly-skill-forge#readme",
       "repository": "https://github.com/casibanryan/pivotly-skill-forge",
-      "keywords": [
-        "skills",
-        "documentation",
-        "pivotly",
-        "api",
-        "mcp"
-      ],
+      "keywords": ["skills", "documentation", "pivotly", "api", "mcp"],
       "category": "development"
     }
   ]
