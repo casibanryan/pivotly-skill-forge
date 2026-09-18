@@ -136,7 +136,7 @@ async function configReport(): Promise<Record<string, unknown>> {
     const ok = await isGitRepo(cfg.backendPath.value);
     backend.is_git_repo = ok;
     if (!ok) {
-      backend.problem = "Stored path is not a git checkout. Ask the user for the right one and call forge_config_set(backend_path).";
+      backend.problem = "Stored path is not a git checkout. Prompt for the right one with forge_config_collect(keys: [\"backend_path\"], force: true).";
     }
   }
 
@@ -195,16 +195,19 @@ interface Prompt {
   message: string;
   title: string;
   description: string;
-  format?: "uri";
   withDefault?: () => string | undefined;
 }
 
+// No `format` constraints here on purpose. The SDK validates the developer's answer against
+// requestedSchema and THROWS on a mismatch, which would surface as a protocol failure rather
+// than as "that value was not accepted, try again" — and `format: "uri"` rejects perfectly
+// reasonable answers like "localhost". Every value is checked by validateFor() instead, which
+// produces an explanation the developer can act on and a prompt they can correct.
 const PROMPTS: Record<PromptKey, Prompt> = {
   api_base_url: {
     message: "Which URL is your Pivotly backend running on?",
     title: "Backend URL",
     description: `Include the scheme and port, e.g. ${DEFAULT_API_BASE_URL}. Must be a local/dev host — never production.`,
-    format: "uri",
     withDefault: () => DEFAULT_API_BASE_URL,
   },
   token: {
@@ -229,19 +232,44 @@ function clientSupportsElicitation(): boolean {
   }
 }
 
+/**
+ * What the connected host advertised at initialize. Reported when prompts are unavailable so
+ * "this host has no elicitation" can be distinguished from "elicitation failed for some other
+ * reason" without having to guess which one happened.
+ */
+function observedClientCapabilities(): Record<string, unknown> {
+  try {
+    const caps = server.server.getClientCapabilities();
+    return {
+      advertised: caps ? Object.keys(caps) : [],
+      elicitation: caps?.elicitation ?? null,
+    };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
 type PromptOutcome =
   | { status: "value"; value: string }
   | { status: "declined" | "cancelled" }
+  | { status: "invalid"; reason: string }
   | { status: "unsupported"; reason: string };
 
 /** Validate a prompted value with the same rules forge_config_set applies. */
-function validateFor(key: PromptKey, value: string) {
-  if (key === "api_base_url") return validateApiBaseUrl(value, false);
+function validateFor(key: PromptKey, value: string, allowRemote = false) {
+  if (key === "api_base_url") return validateApiBaseUrl(value, allowRemote);
   if (key === "token") return validateToken(value);
   return validateBackendPath(value);
 }
 
-/** Ask the developer for one value. Never throws; an unsupporting client is a normal outcome. */
+/**
+ * A prompt can block for as long as the developer takes to find a token in a password
+ * manager. The SDK's default request timeout is 60s, which would discard a perfectly good
+ * answer and abort the run, so ask for a much longer one.
+ */
+const PROMPT_TIMEOUT_MS = 600_000;
+
+/** Ask the developer for one value. Never throws; each failure mode is a distinct outcome. */
 async function promptFor(key: PromptKey, retryError?: string): Promise<PromptOutcome> {
   if (!clientSupportsElicitation()) {
     return { status: "unsupported", reason: "This host does not support MCP elicitation prompts." };
@@ -253,23 +281,33 @@ async function promptFor(key: PromptKey, retryError?: string): Promise<PromptOut
     description: retryError ? `${retryError} — ${p.description}` : p.description,
     minLength: 1,
   };
-  if (p.format) schema.format = p.format;
   const def = p.withDefault?.();
   if (def) schema.default = def;
 
   try {
-    const res = await server.server.elicitInput({
-      mode: "form",
-      message: retryError ? `${retryError}\n\n${p.message}` : p.message,
-      requestedSchema: { type: "object", properties: { [key]: schema as never }, required: [key] },
-    });
+    const res = await server.server.elicitInput(
+      {
+        mode: "form",
+        message: retryError ? `${retryError}\n\n${p.message}` : p.message,
+        requestedSchema: { type: "object", properties: { [key]: schema as never }, required: [key] },
+      },
+      { timeout: PROMPT_TIMEOUT_MS, resetTimeoutOnProgress: true },
+    );
     if (res.action !== "accept") return { status: res.action === "decline" ? "declined" : "cancelled" };
     const raw = (res.content as Record<string, unknown> | undefined)?.[key];
     if (typeof raw !== "string" || !raw.trim()) return { status: "cancelled" };
     return { status: "value", value: raw.trim() };
   } catch (e) {
-    // -32601 "Method not found" is what a client that never declared the capability returns.
-    return { status: "unsupported", reason: `Prompt failed: ${String(e)}` };
+    // Not every throw means the host lacks prompts, and treating them alike is how a bad
+    // answer gets reported as a missing capability and abandons the remaining settings.
+    // -32601 / "does not support" is a real capability failure; anything else is this one
+    // prompt going wrong, which the caller can retry.
+    const code = (e as { code?: unknown })?.code;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (code === -32601 || /does not support/i.test(msg)) {
+      return { status: "unsupported", reason: msg };
+    }
+    return { status: "invalid", reason: msg };
   }
 }
 
@@ -360,7 +398,7 @@ server.tool(
       warnings: warnings.length ? warnings : undefined,
       config: await configReport(),
       next_action: rejected.length
-        ? "Tell the user in plain language what was rejected and why, ask for a corrected value, then call forge_config_set again."
+        ? "Tell the user in plain language what was rejected and why, then call forge_config_collect for that key with force: true to prompt for a corrected value."
         : undefined,
     });
   },
@@ -381,8 +419,14 @@ server.tool(
       .boolean()
       .default(false)
       .describe("Prompt even for settings that already have a value — use when the developer wants to change one (rotated token, different port, moved checkout)."),
+    allow_remote: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Set only after the developer explicitly confirms that a non-local backend URL is a dev environment. Without it a non-local URL is refused, and refused again on every retry. Never pass it on your own initiative.",
+      ),
   },
-  async ({ keys, force }) => {
+  async ({ keys, force, allow_remote }) => {
     const cfg = loadConfig();
     const have: Record<ConfigKey, boolean> = {
       // A default-sourced URL is not something the developer chose, so it still counts as missing.
@@ -405,14 +449,21 @@ server.tool(
       return text({
         error: "This host does not support input prompts (MCP elicitation).",
         needed: wanted,
+        // Report what the host actually advertised, so "no prompts" can be told apart from
+        // "prompts, but something else went wrong" without guessing.
+        client_capabilities: observedClientCapabilities(),
         next_action:
           "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. " +
+          "Say once, plainly, that a token typed into chat stays in the transcript. " +
           "Do not tell them to set an environment variable or edit a file.",
         config: await configReport(),
       });
     }
 
-    const stored: StoredConfig = readStored();
+    // Values are collected into `pending` and merged onto a FRESH read at write time. Reading
+    // the file up front and writing it back after the prompts would span however long the
+    // developer takes to answer, silently clobbering anything written in the meantime.
+    const pending: StoredConfig = {};
     const collected: string[] = [];
     const rejected: string[] = [];
     const skipped: string[] = [];
@@ -422,23 +473,30 @@ server.tool(
     for (const key of wanted) {
       let outcome = await promptFor(key);
 
-      // One retry, carrying the validation error into the prompt so the developer sees why.
+      // One retry, carrying the error into the prompt so the developer sees why. Covers both
+      // a value our own rules reject and a prompt the client itself refused.
       if (outcome.status === "value") {
-        const first = validateFor(key, outcome.value);
+        const first = validateFor(key, outcome.value, allow_remote);
         if (!first.ok) outcome = await promptFor(key, first.error);
+      } else if (outcome.status === "invalid") {
+        outcome = await promptFor(key, `That value was not accepted (${outcome.reason}).`);
       }
 
       if (outcome.status !== "value") {
         if (outcome.status === "unsupported") {
           stoppedAt = `${key}: ${outcome.reason}`;
-        } else {
-          skipped.push(`${key} (${outcome.status})`);
-          stoppedAt = `The developer ${outcome.status === "declined" ? "declined" : "dismissed"} the ${key} prompt.`;
+          break;
         }
+        if (outcome.status === "invalid") {
+          rejected.push(`${key}: ${outcome.reason}`);
+          continue; // one bad answer must not abandon the remaining settings
+        }
+        skipped.push(`${key} (${outcome.status})`);
+        stoppedAt = `The developer ${outcome.status === "declined" ? "declined" : "dismissed"} the ${key} prompt.`;
         break;
       }
 
-      const v = validateFor(key, outcome.value);
+      const v = validateFor(key, outcome.value, allow_remote);
       if (!v.ok) {
         rejected.push(v.error as string);
         continue;
@@ -452,19 +510,20 @@ server.tool(
           rejected.push(`${v.value} exists but is not a git checkout — ask for the directory containing .git.`);
           continue;
         }
-        stored.backend_path = v.value;
+        pending.backend_path = v.value;
         persistNeeded = true;
         collected.push(`backend_path = ${v.value}`);
       } else {
-        stored.api_base_url = v.value;
+        pending.api_base_url = v.value;
         persistNeeded = true;
         collected.push(`api_base_url = ${v.value}`);
+        if (v.warning) rejected.push(v.warning);
       }
     }
 
     if (persistNeeded) {
       try {
-        writeStored(stored);
+        writeStored({ ...readStored(), ...pending });
       } catch (e) {
         return text({ error: `Could not write ${CONFIG_PATH}: ${String(e)}`, collected, rejected });
       }
@@ -560,8 +619,8 @@ server.tool(
     if (!reachable) {
       report.next_action =
         cfg.apiBaseUrl.source === "default"
-          ? `Nothing answered at the default ${BASE_URL}, and no backend URL is stored. Ask the user whether the backend is running and on which port, then store it with forge_config_set(api_base_url).`
-          : `Backend not reachable at ${BASE_URL}. Ask the user to start the core backend, or to correct the URL — then store it with forge_config_set(api_base_url).`;
+          ? `Nothing answered at the default ${BASE_URL}, and no backend URL is stored. Ask whether the backend is running, then prompt for the URL with forge_config_collect(keys: [\"api_base_url\"], force: true).`
+          : `Backend not reachable at ${BASE_URL}. Ask the user to start the core backend, or prompt for a corrected URL with forge_config_collect(keys: [\"api_base_url\"], force: true).`;
       return text(report, TOKEN);
     }
 
@@ -580,7 +639,7 @@ server.tool(
         };
         if (r.status === 401 || r.status === 403) {
           report.next_action =
-            "The stored token was rejected. Tell the user it was rejected (never quote it), ask for a current dev token, and store it with forge_config_set(token).";
+            "The token was rejected. Tell the user it was rejected (never quote it), then call forge_config_collect(keys: [\"token\"], force: true) to prompt for a current one — do not ask them to paste it into the chat.";
         }
       } catch (e) {
         report.auth_probe = { error: String(e) };
@@ -629,7 +688,7 @@ server.tool(
     if (!TOKEN) {
       return text({
         error: "No dev bearer token is stored, so authenticated requests cannot be made.",
-        next_action: `Ask the user for their Pivotly dev token and store it with forge_config_set(token). ${SETUP_HINT}`,
+        next_action: `No token this session — it is never stored on disk. ${SETUP_HINT}`,
         config_path: CONFIG_PATH,
       });
     }
@@ -742,7 +801,7 @@ server.tool(
     if (!BACKEND_PATH) {
       return text({
         error: "No backend repo path is stored.",
-        next_action: `Ask the user for the absolute path to their Pivotly backend checkout and store it with forge_config_set(backend_path). ${SETUP_HINT}`,
+        next_action: `No backend checkout path stored. ${SETUP_HINT}`,
         config_path: CONFIG_PATH,
       });
     }
@@ -753,7 +812,7 @@ server.tool(
       return text({
         error: `Not a git repo: ${BACKEND_PATH}`,
         detail: String(e),
-        next_action: "Ask the user for the correct backend checkout path and store it with forge_config_set(backend_path).",
+        next_action: "Prompt for the correct backend checkout path with forge_config_collect(keys: [\"backend_path\"], force: true).",
       });
     }
     if (doFetchRemote) {

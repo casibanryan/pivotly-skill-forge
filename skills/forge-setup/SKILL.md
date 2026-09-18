@@ -49,7 +49,7 @@ If it returns `error: "This host does not support input prompts"`, that host has
 
 ### 3. Validation happens as each answer arrives
 `forge_config_collect` validates every value and re-prompts once with the error shown. `forge_config_set` applies the same rules when you use it directly:
-- A non-local `api_base_url` is **refused**. Relay the refusal, ask whether it is genuinely a dev environment, and only retry with `allow_remote: true` after the developer says yes. Never pass `allow_remote` on your own initiative.
+- A non-local `api_base_url` is **refused** by both tools. Relay the refusal, ask whether it is genuinely a dev environment, and only then re-run with `allow_remote: true` — `forge_config_collect(keys: ["api_base_url"], force: true, allow_remote: true)` or `forge_config_set(api_base_url, allow_remote: true)`. Never pass `allow_remote` on your own initiative; without it the prompt will refuse the same value every time.
 - `backend_path` must exist and be a git checkout. `~`, quoted paths, and Git Bash / WSL spellings (`/c/…`, `/mnt/c/…`) are normalized for them.
 - A placeholder-looking token is refused. Ask for the real one.
 

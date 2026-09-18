@@ -219,6 +219,21 @@ export function validateToken(raw: string): Validation {
   if (/^(dev-token-placeholder|<.*>|your[-_]token|xxx+)$/i.test(trimmed)) {
     return { ok: false, error: "That looks like a placeholder, not a real token. Ask the user for the dev bearer token issued by the backend." };
   }
+  // Interior whitespace or control characters mean the paste was split across lines. Such a
+  // value is not a usable bearer token, and it also defeats redaction: responses are serialized
+  // with JSON.stringify, which escapes a newline to \n, so the raw token no longer occurs in the
+  // text being redacted and would survive into a tool result. Reject it at the gate.
+  if (/[\s -]/.test(trimmed)) {
+    return {
+      ok: false,
+      error: "A bearer token cannot contain spaces, newlines, or control characters — the paste was probably split across lines. Ask for it again as a single line.",
+    };
+  }
+  // A very short value is not a real token, and it would turn redaction into a destructive
+  // find-and-replace over every response (a 1-character token rewrites ordinary words).
+  if (trimmed.length < 8) {
+    return { ok: false, error: `That is only ${trimmed.length} characters, which is not a bearer token. Ask for the full dev token.` };
+  }
   return { ok: true, value: trimmed };
 }
 

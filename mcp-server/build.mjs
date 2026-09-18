@@ -14,9 +14,18 @@
  */
 
 import { build, context } from "esbuild";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { builtinModules } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const BUILTINS = new Set(builtinModules);
+
+/** True for "fs" and "node:fs" alike — both resolve without anything installed. */
+export function isNodeBuiltin(spec) {
+  const bare = spec.startsWith("node:") ? spec.slice(5) : spec;
+  return BUILTINS.has(bare) || BUILTINS.has(bare.split("/")[0]);
+}
 
 const root = dirname(fileURLToPath(import.meta.url));
 const outfile = join(root, "dist", "index.js");
@@ -52,6 +61,9 @@ if (watch) {
   await ctx.watch();
   console.log("[build] watching src/ …");
 } else {
+  // Clear dist first: a stale file from an older layout (dist/config.js) would otherwise
+  // survive and get committed alongside the bundle.
+  rmSync(join(root, "dist"), { recursive: true, force: true });
   await build(options);
   const bytes = readFileSync(outfile).byteLength;
 
@@ -60,7 +72,9 @@ if (watch) {
   const source = readFileSync(outfile, "utf8");
   const bare = [...source.matchAll(/^\s*(?:import|export)[^;]*?from\s*["']([^"'.][^"']*)["']/gm)]
     .map((m) => m[1])
-    .filter((spec) => !spec.startsWith("node:"));
+    // Node builtins are resolvable with or without the node: prefix, and esbuild preserves
+    // whichever spelling a dependency used. Only a genuine package specifier is a problem.
+    .filter((spec) => !isNodeBuiltin(spec));
   if (bare.length) {
     console.error(`[build] FAILED — unbundled runtime imports remain: ${[...new Set(bare)].join(", ")}`);
     process.exit(1);

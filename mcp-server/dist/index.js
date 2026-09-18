@@ -21570,6 +21570,15 @@ function validateToken(raw) {
   if (/^(dev-token-placeholder|<.*>|your[-_]token|xxx+)$/i.test(trimmed)) {
     return { ok: false, error: "That looks like a placeholder, not a real token. Ask the user for the dev bearer token issued by the backend." };
   }
+  if (/[\s -]/.test(trimmed)) {
+    return {
+      ok: false,
+      error: "A bearer token cannot contain spaces, newlines, or control characters \u2014 the paste was probably split across lines. Ask for it again as a single line."
+    };
+  }
+  if (trimmed.length < 8) {
+    return { ok: false, error: `That is only ${trimmed.length} characters, which is not a bearer token. Ask for the full dev token.` };
+  }
   return { ok: true, value: trimmed };
 }
 function windowsEquivalent(p) {
@@ -21665,7 +21674,7 @@ async function configReport() {
     const ok = await isGitRepo(cfg.backendPath.value);
     backend.is_git_repo = ok;
     if (!ok) {
-      backend.problem = "Stored path is not a git checkout. Ask the user for the right one and call forge_config_set(backend_path).";
+      backend.problem = 'Stored path is not a git checkout. Prompt for the right one with forge_config_collect(keys: ["backend_path"], force: true).';
     }
   }
   const notes = [];
@@ -21700,7 +21709,6 @@ var PROMPTS = {
     message: "Which URL is your Pivotly backend running on?",
     title: "Backend URL",
     description: `Include the scheme and port, e.g. ${DEFAULT_API_BASE_URL}. Must be a local/dev host \u2014 never production.`,
-    format: "uri",
     withDefault: () => DEFAULT_API_BASE_URL
   },
   token: {
@@ -21721,11 +21729,23 @@ function clientSupportsElicitation() {
     return false;
   }
 }
-function validateFor(key, value) {
-  if (key === "api_base_url") return validateApiBaseUrl(value, false);
+function observedClientCapabilities() {
+  try {
+    const caps = server.server.getClientCapabilities();
+    return {
+      advertised: caps ? Object.keys(caps) : [],
+      elicitation: caps?.elicitation ?? null
+    };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+function validateFor(key, value, allowRemote = false) {
+  if (key === "api_base_url") return validateApiBaseUrl(value, allowRemote);
   if (key === "token") return validateToken(value);
   return validateBackendPath(value);
 }
+var PROMPT_TIMEOUT_MS = 6e5;
 async function promptFor(key, retryError) {
   if (!clientSupportsElicitation()) {
     return { status: "unsupported", reason: "This host does not support MCP elicitation prompts." };
@@ -21737,23 +21757,30 @@ async function promptFor(key, retryError) {
     description: retryError ? `${retryError} \u2014 ${p.description}` : p.description,
     minLength: 1
   };
-  if (p.format) schema.format = p.format;
   const def = p.withDefault?.();
   if (def) schema.default = def;
   try {
-    const res = await server.server.elicitInput({
-      mode: "form",
-      message: retryError ? `${retryError}
+    const res = await server.server.elicitInput(
+      {
+        mode: "form",
+        message: retryError ? `${retryError}
 
 ${p.message}` : p.message,
-      requestedSchema: { type: "object", properties: { [key]: schema }, required: [key] }
-    });
+        requestedSchema: { type: "object", properties: { [key]: schema }, required: [key] }
+      },
+      { timeout: PROMPT_TIMEOUT_MS, resetTimeoutOnProgress: true }
+    );
     if (res.action !== "accept") return { status: res.action === "decline" ? "declined" : "cancelled" };
     const raw = res.content?.[key];
     if (typeof raw !== "string" || !raw.trim()) return { status: "cancelled" };
     return { status: "value", value: raw.trim() };
   } catch (e) {
-    return { status: "unsupported", reason: `Prompt failed: ${String(e)}` };
+    const code = e?.code;
+    const msg = e instanceof Error ? e.message : String(e);
+    if (code === -32601 || /does not support/i.test(msg)) {
+      return { status: "unsupported", reason: msg };
+    }
+    return { status: "invalid", reason: msg };
   }
 }
 server.tool(
@@ -21822,7 +21849,7 @@ server.tool(
       rejected: rejected.length ? rejected : void 0,
       warnings: warnings.length ? warnings : void 0,
       config: await configReport(),
-      next_action: rejected.length ? "Tell the user in plain language what was rejected and why, ask for a corrected value, then call forge_config_set again." : void 0
+      next_action: rejected.length ? "Tell the user in plain language what was rejected and why, then call forge_config_collect for that key with force: true to prompt for a corrected value." : void 0
     });
   }
 );
@@ -21831,9 +21858,12 @@ server.tool(
   "Collect skill-forge settings by prompting the developer directly, one input at a time, in the host's own UI. This is the preferred way to set anything up: call it instead of asking the user for values in conversation. By default it prompts only for what is missing \u2014 the backend URL, the dev token (session-only), and the backend checkout path. Each answer is validated as it arrives and a rejected value is re-prompted once. Returns what was collected; never returns the token.",
   {
     keys: external_exports.array(external_exports.enum(["api_base_url", "token", "backend_path"])).optional().describe("Which settings to prompt for, in this order. Omit to prompt for everything not already available."),
-    force: external_exports.boolean().default(false).describe("Prompt even for settings that already have a value \u2014 use when the developer wants to change one (rotated token, different port, moved checkout).")
+    force: external_exports.boolean().default(false).describe("Prompt even for settings that already have a value \u2014 use when the developer wants to change one (rotated token, different port, moved checkout)."),
+    allow_remote: external_exports.boolean().default(false).describe(
+      "Set only after the developer explicitly confirms that a non-local backend URL is a dev environment. Without it a non-local URL is refused, and refused again on every retry. Never pass it on your own initiative."
+    )
   },
-  async ({ keys, force }) => {
+  async ({ keys, force, allow_remote }) => {
     const cfg = loadConfig();
     const have = {
       // A default-sourced URL is not something the developer chose, so it still counts as missing.
@@ -21854,11 +21884,14 @@ server.tool(
       return text({
         error: "This host does not support input prompts (MCP elicitation).",
         needed: wanted,
-        next_action: "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. Do not tell them to set an environment variable or edit a file.",
+        // Report what the host actually advertised, so "no prompts" can be told apart from
+        // "prompts, but something else went wrong" without guessing.
+        client_capabilities: observedClientCapabilities(),
+        next_action: "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. Say once, plainly, that a token typed into chat stays in the transcript. Do not tell them to set an environment variable or edit a file.",
         config: await configReport()
       });
     }
-    const stored = readStored();
+    const pending = {};
     const collected = [];
     const rejected = [];
     const skipped = [];
@@ -21867,19 +21900,25 @@ server.tool(
     for (const key of wanted) {
       let outcome = await promptFor(key);
       if (outcome.status === "value") {
-        const first = validateFor(key, outcome.value);
+        const first = validateFor(key, outcome.value, allow_remote);
         if (!first.ok) outcome = await promptFor(key, first.error);
+      } else if (outcome.status === "invalid") {
+        outcome = await promptFor(key, `That value was not accepted (${outcome.reason}).`);
       }
       if (outcome.status !== "value") {
         if (outcome.status === "unsupported") {
           stoppedAt = `${key}: ${outcome.reason}`;
-        } else {
-          skipped.push(`${key} (${outcome.status})`);
-          stoppedAt = `The developer ${outcome.status === "declined" ? "declined" : "dismissed"} the ${key} prompt.`;
+          break;
         }
+        if (outcome.status === "invalid") {
+          rejected.push(`${key}: ${outcome.reason}`);
+          continue;
+        }
+        skipped.push(`${key} (${outcome.status})`);
+        stoppedAt = `The developer ${outcome.status === "declined" ? "declined" : "dismissed"} the ${key} prompt.`;
         break;
       }
-      const v = validateFor(key, outcome.value);
+      const v = validateFor(key, outcome.value, allow_remote);
       if (!v.ok) {
         rejected.push(v.error);
         continue;
@@ -21892,18 +21931,19 @@ server.tool(
           rejected.push(`${v.value} exists but is not a git checkout \u2014 ask for the directory containing .git.`);
           continue;
         }
-        stored.backend_path = v.value;
+        pending.backend_path = v.value;
         persistNeeded = true;
         collected.push(`backend_path = ${v.value}`);
       } else {
-        stored.api_base_url = v.value;
+        pending.api_base_url = v.value;
         persistNeeded = true;
         collected.push(`api_base_url = ${v.value}`);
+        if (v.warning) rejected.push(v.warning);
       }
     }
     if (persistNeeded) {
       try {
-        writeStored(stored);
+        writeStored({ ...readStored(), ...pending });
       } catch (e) {
         return text({ error: `Could not write ${CONFIG_PATH}: ${String(e)}`, collected, rejected });
       }
@@ -21976,7 +22016,7 @@ server.tool(
     }
     report.reachable = reachable;
     if (!reachable) {
-      report.next_action = cfg.apiBaseUrl.source === "default" ? `Nothing answered at the default ${BASE_URL}, and no backend URL is stored. Ask the user whether the backend is running and on which port, then store it with forge_config_set(api_base_url).` : `Backend not reachable at ${BASE_URL}. Ask the user to start the core backend, or to correct the URL \u2014 then store it with forge_config_set(api_base_url).`;
+      report.next_action = cfg.apiBaseUrl.source === "default" ? `Nothing answered at the default ${BASE_URL}, and no backend URL is stored. Ask whether the backend is running, then prompt for the URL with forge_config_collect(keys: ["api_base_url"], force: true).` : `Backend not reachable at ${BASE_URL}. Ask the user to start the core backend, or prompt for a corrected URL with forge_config_collect(keys: ["api_base_url"], force: true).`;
       return text(report, TOKEN);
     }
     if (TOKEN) {
@@ -21992,7 +22032,7 @@ server.tool(
           accepted: r.status !== 401 && r.status !== 403
         };
         if (r.status === 401 || r.status === 403) {
-          report.next_action = "The stored token was rejected. Tell the user it was rejected (never quote it), ask for a current dev token, and store it with forge_config_set(token).";
+          report.next_action = 'The token was rejected. Tell the user it was rejected (never quote it), then call forge_config_collect(keys: ["token"], force: true) to prompt for a current one \u2014 do not ask them to paste it into the chat.';
         }
       } catch (e) {
         report.auth_probe = { error: String(e) };
@@ -22033,7 +22073,7 @@ server.tool(
     if (!TOKEN) {
       return text({
         error: "No dev bearer token is stored, so authenticated requests cannot be made.",
-        next_action: `Ask the user for their Pivotly dev token and store it with forge_config_set(token). ${SETUP_HINT}`,
+        next_action: `No token this session \u2014 it is never stored on disk. ${SETUP_HINT}`,
         config_path: CONFIG_PATH
       });
     }
@@ -22137,7 +22177,7 @@ server.tool(
     if (!BACKEND_PATH) {
       return text({
         error: "No backend repo path is stored.",
-        next_action: `Ask the user for the absolute path to their Pivotly backend checkout and store it with forge_config_set(backend_path). ${SETUP_HINT}`,
+        next_action: `No backend checkout path stored. ${SETUP_HINT}`,
         config_path: CONFIG_PATH
       });
     }
@@ -22148,7 +22188,7 @@ server.tool(
       return text({
         error: `Not a git repo: ${BACKEND_PATH}`,
         detail: String(e),
-        next_action: "Ask the user for the correct backend checkout path and store it with forge_config_set(backend_path)."
+        next_action: 'Prompt for the correct backend checkout path with forge_config_collect(keys: ["backend_path"], force: true).'
       });
     }
     if (doFetchRemote) {

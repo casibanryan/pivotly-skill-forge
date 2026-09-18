@@ -14,11 +14,19 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { builtinModules } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const say = (line) => console.log(`[skill-forge] ${line}`);
+
+const BUILTINS = new Set(builtinModules);
+/** True for "fs" and "node:fs" alike — both resolve without anything installed. */
+const isNodeBuiltin = (spec) => {
+  const bare = spec.startsWith("node:") ? spec.slice(5) : spec;
+  return BUILTINS.has(bare) || BUILTINS.has(bare.split("/")[0]);
+};
 
 const CONFIG_PATH =
   process.env.PIVOTLY_SKILL_FORGE_CONFIG?.trim() ||
@@ -40,10 +48,10 @@ function value(key, envName) {
   return fromEnv || "";
 }
 
-function git(repo, args) {
+function git(repo, args, timeout = 8000) {
   return execFileSync("git", ["-C", repo, ...args], {
     encoding: "utf8",
-    timeout: 20000,
+    timeout,
     stdio: ["ignore", "pipe", "ignore"],
   }).trim();
 }
@@ -78,7 +86,10 @@ try {
         ...new Set(
           [...built.matchAll(/^\s*(?:import|export)[^;]*?from\s*["']([^"'.][^"']*)["']/gm)]
             .map((m) => m[1])
-            .filter((spec) => !spec.startsWith("node:"))
+            // "fs" and "node:fs" both resolve with nothing installed; esbuild keeps whichever
+            // spelling a dependency used. Flagging those would announce a broken server that
+            // actually runs fine.
+            .filter((spec) => !isNodeBuiltin(spec))
             .filter((spec) => !existsSync(join(serverRoot, "node_modules", spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/")))),
         ),
       ];
@@ -142,7 +153,10 @@ try {
   const branch = git(backendPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
   const dirty = git(backendPath, ["status", "--porcelain"]).split("\n").filter(Boolean).length;
   try {
-    git(backendPath, ["fetch", "origin", "main", "--quiet"]);
+    // Hard cap: the hook itself is killed at 20s, and a slow-but-alive remote would consume
+    // the whole budget and discard everything already printed — including the "server cannot
+    // start" diagnosis, which is the one message that matters.
+    git(backendPath, ["fetch", "origin", "main", "--quiet"], 5000);
   } catch {
     /* offline is fine */
   }
