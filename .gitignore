@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+
+# Developer settings are collected interactively and stored outside the repo
+# (~/.pivotly-skill-forge/config.json). Nothing config-shaped belongs here.
+.env
+.env.*
+config.json

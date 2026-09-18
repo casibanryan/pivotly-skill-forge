@@ -1,0 +1,16 @@
+{
+  "name": "pivotly-skill-forge",
+  "version": "0.2.0",
+  "description": "Generate AI-client skills from Pivotly reference docs, then close the gaps using the local backend codebase, the running API, and org documents on Google Drive.",
+  "author": {
+    "name": "Pivotly"
+  },
+  "keywords": [
+    "skills",
+    "documentation",
+    "pivotly",
+    "api",
+    "mcp"
+  ],
+  "license": "UNLICENSED"
+}
