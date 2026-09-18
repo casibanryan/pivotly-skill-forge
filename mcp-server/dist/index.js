@@ -21724,7 +21724,10 @@ var PROMPTS = {
 };
 function clientSupportsElicitation() {
   try {
-    return Boolean(server.server.getClientCapabilities()?.elicitation);
+    const e = server.server.getClientCapabilities()?.elicitation;
+    if (!e || typeof e !== "object") return false;
+    if (Object.keys(e).length === 0) return true;
+    return Boolean(e.form);
   } catch {
     return false;
   }
@@ -21881,13 +21884,15 @@ server.tool(
       });
     }
     if (!clientSupportsElicitation()) {
+      const caps = observedClientCapabilities();
+      const urlOnly = Boolean(caps.elicitation?.url);
       return text({
-        error: "This host does not support input prompts (MCP elicitation).",
+        error: urlOnly ? "This host supports only URL-mode elicitation, not the form prompts this tool uses (Claude Desktop/Cowork does this; Claude Code supports form prompts)." : "This host does not support input prompts (MCP elicitation).",
         needed: wanted,
-        // Report what the host actually advertised, so "no prompts" can be told apart from
-        // "prompts, but something else went wrong" without guessing.
-        client_capabilities: observedClientCapabilities(),
-        next_action: "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. Say once, plainly, that a token typed into chat stays in the transcript. Do not tell them to set an environment variable or edit a file.",
+        // Report what the host actually advertised, so "no prompts at all" can be told apart
+        // from "prompts, but not the kind we need" without guessing.
+        client_capabilities: caps,
+        next_action: "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. Say once, plainly, that a token typed into chat stays in that transcript, and that running the same setup in Claude Code gets them a real input field instead. Do not tell them to set an environment variable or edit a file.",
         config: await configReport()
       });
     }

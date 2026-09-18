@@ -224,9 +224,27 @@ const PROMPTS: Record<PromptKey, Prompt> = {
   },
 };
 
+/**
+ * Whether the host can show a *form* prompt specifically — not merely "some elicitation".
+ *
+ * These are not the same question, and the difference decides whether this feature works:
+ *   Claude Code declares  elicitation: {}           → form (a missing mode means form)
+ *   Claude Desktop/Cowork declares  elicitation: { url: {} }  → URL mode only, no form
+ *
+ * Checking only for `elicitation` would pass on Cowork and then fail inside elicitInput with
+ * "Client does not support form elicitation", one setting at a time. Checking for form up
+ * front lets the caller fall back cleanly and say something true.
+ *
+ * URL mode is not a usable substitute here: it requires a public HTTPS page to host the form,
+ * which a local developer plugin has no business standing up.
+ */
 function clientSupportsElicitation(): boolean {
   try {
-    return Boolean(server.server.getClientCapabilities()?.elicitation);
+    const e = server.server.getClientCapabilities()?.elicitation as Record<string, unknown> | undefined;
+    if (!e || typeof e !== "object") return false;
+    // A bare `elicitation: {}` predates the mode split and means form.
+    if (Object.keys(e).length === 0) return true;
+    return Boolean(e.form);
   } catch {
     return false;
   }
@@ -446,15 +464,19 @@ server.tool(
     }
 
     if (!clientSupportsElicitation()) {
+      const caps = observedClientCapabilities();
+      const urlOnly = Boolean((caps.elicitation as Record<string, unknown> | null)?.url);
       return text({
-        error: "This host does not support input prompts (MCP elicitation).",
+        error: urlOnly
+          ? "This host supports only URL-mode elicitation, not the form prompts this tool uses (Claude Desktop/Cowork does this; Claude Code supports form prompts)."
+          : "This host does not support input prompts (MCP elicitation).",
         needed: wanted,
-        // Report what the host actually advertised, so "no prompts" can be told apart from
-        // "prompts, but something else went wrong" without guessing.
-        client_capabilities: observedClientCapabilities(),
+        // Report what the host actually advertised, so "no prompts at all" can be told apart
+        // from "prompts, but not the kind we need" without guessing.
+        client_capabilities: caps,
         next_action:
           "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. " +
-          "Say once, plainly, that a token typed into chat stays in the transcript. " +
+          "Say once, plainly, that a token typed into chat stays in that transcript, and that running the same setup in Claude Code gets them a real input field instead. " +
           "Do not tell them to set an environment variable or edit a file.",
         config: await configReport(),
       });
