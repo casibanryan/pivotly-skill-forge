@@ -35,14 +35,12 @@ docs ──► doc-to-skill ──► SKILL.md (with UNKNOWNs) ──► close-g
 `SessionStart` runs `hooks/scripts/session-check.mjs`, which reports whether the server is built, which settings you have stored, and your backend repo's branch/status — so Claude reminds you to be on `main` and pulled before mining. Plain Node, no dependencies, never fails a session.
 
 ## Setup
-1. Build the server once:
-   ```bash
-   cd mcp-server && npm install && npm run build
-   ```
-2. Install the plugin and start a session.
-3. Connect **Google Drive** in the host's connectors (only needed for `drive-collect`).
+1. Install the plugin and start a session.
+2. Connect **Google Drive** in the host's connectors (only needed for `drive-collect`).
 
-That's it — there is nothing to put in your environment and no file to edit. The first time a skill needs your backend, Claude asks for what it needs and stores it:
+There is nothing to build. `mcp-server/dist/index.js` is committed as a single dependency-free bundle, so the
+server starts on any machine with Node 18+ straight from a sync or clone — no `npm install`, nothing to put in
+your environment, and no file to edit. The first time a skill needs your backend, Claude asks for what it needs and stores it:
 
 > **Claude:** What URL is your Pivotly backend running on? (default `http://localhost:3000`)
 
@@ -60,6 +58,19 @@ To change one later, just say so ("point it at port 4000", "I rotated my token")
 - Backend checkout on `main`, pulled (the hook and `forge_git_state` will nag otherwise).
 - Backend running locally against a **dev** database. `api-verify` may write to it, but confirms every mutating call and tags probe records `skillforge-<date>-…`.
 - Never point the backend URL at production — `forge_config_set` refuses any non-local host unless you explicitly confirm it is a dev environment.
+
+## Working on the MCP server
+```bash
+cd mcp-server && npm install && npm run build   # typecheck with tsc, then bundle with esbuild
+npm run dev                                     # rebuild on save
+```
+**Commit `mcp-server/dist/index.js` with every source change.** The plugin is distributed by syncing this repo
+and `node_modules/` is gitignored, so a plain `tsc` build — which leaves `import … from "@modelcontextprotocol/sdk/…"`
+in its output — cannot start on a synced copy: Node exits with `ERR_MODULE_NOT_FOUND` before the transport opens,
+the host reports only that the connection closed, and every `forge_*` tool silently disappears. `npm run build`
+inlines the dependencies and fails the build if any bare import survives. The `SessionStart` hook checks for a
+*runnable* bundle rather than a present file, so if a stale unbundled build is ever committed it says so in the
+first message of the session instead of leaving you to guess.
 
 ## Portability
 The skills are standard Agent Skills (`SKILL.md`) and work in Claude Code, Cowork, Cursor, Copilot, Codex. The MCP server is standard MCP and can be registered in any MCP-capable client. The `.claude-plugin/` + `.mcp.json` wrapper is Claude-specific.

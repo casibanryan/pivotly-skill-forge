@@ -53,14 +53,46 @@ try {
     process.env.CLAUDE_PLUGIN_ROOT?.trim() ||
     resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-  // 1. Is the MCP server built? Without this, none of the forge_* tools exist.
-  if (!existsSync(join(pluginRoot, "mcp-server", "dist", "index.js"))) {
+  // 1. Can the MCP server actually start? Without it, none of the forge_* tools exist.
+  //
+  // "The file exists" is not the same question. dist/index.js is committed as a dependency-free
+  // esbuild bundle precisely because node_modules/ is gitignored: a plain `tsc` build leaves bare
+  // imports like "@modelcontextprotocol/sdk/..." in the output, which a freshly synced plugin
+  // cannot resolve, so Node exits with ERR_MODULE_NOT_FOUND before the transport ever opens. The
+  // host then reports only that the connection closed. So check for a *runnable* bundle, not a
+  // present file — an existsSync check passes in exactly the case that used to fail silently.
+  const serverRoot = join(pluginRoot, "mcp-server");
+  const serverEntry = join(serverRoot, "dist", "index.js");
+  const rebuild = `cd "${serverRoot}" && npm install && npm run build`;
+
+  if (!existsSync(serverEntry)) {
     say(
-      "The skill-forge MCP server is not built yet, so the forge_* tools are unavailable. " +
-        "Offer to run: cd " +
-        join(pluginRoot, "mcp-server") +
-        " && npm install && npm run build — then the session must be restarted to pick up the tools.",
+      "The skill-forge MCP server is not built, so the forge_* tools are unavailable. " +
+        `Offer to run: ${rebuild} — then the session must be restarted to pick up the tools.`,
     );
+  } else {
+    let unresolvable = [];
+    try {
+      const built = readFileSync(serverEntry, "utf8");
+      unresolvable = [
+        ...new Set(
+          [...built.matchAll(/^\s*(?:import|export)[^;]*?from\s*["']([^"'.][^"']*)["']/gm)]
+            .map((m) => m[1])
+            .filter((spec) => !spec.startsWith("node:"))
+            .filter((spec) => !existsSync(join(serverRoot, "node_modules", spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/")))),
+        ),
+      ];
+    } catch {
+      /* unreadable build — say nothing rather than guess */
+    }
+    if (unresolvable.length) {
+      say(
+        `The skill-forge MCP server cannot start: dist/index.js imports ${unresolvable.join(", ")}, ` +
+          "which is not installed, so every forge_* tool is missing this session (the host reports only " +
+          `that the connection closed). This is a stale unbundled build. Offer to run: ${rebuild} — ` +
+          "npm run build bundles the dependencies in. Then the session must be restarted.",
+      );
+    }
   }
 
   // 2. What has this developer configured? Settings are collected in conversation.

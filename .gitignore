@@ -6,3 +6,7 @@ node_modules/
 .env
 .env.*
 config.json
+
+# mcp-server/dist/index.js is DELIBERATELY committed: it is a dependency-free esbuild
+# bundle, and it is the only reason a synced plugin can start the server without an
+# npm install. Never add dist/ here.
