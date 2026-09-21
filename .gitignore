@@ -10,3 +10,7 @@ config.json
 # mcp-server/dist/index.js is DELIBERATELY committed: it is a dependency-free esbuild
 # bundle, and it is the only reason a synced plugin can start the server without an
 # npm install. Never add dist/ here.
+
+# OIDC token cache (access + refresh token) lives next to config.json in the home dir,
+# never in the repo. Listed here so a stray copy can never be committed.
+token.json

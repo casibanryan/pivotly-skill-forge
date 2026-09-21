@@ -1,86 +1,73 @@
 ---
 name: forge-setup
 description: >
-  This skill should be used when the user asks to "set up skill forge", "configure the plugin", "connect my
-  backend", "change the backend URL", "update my dev token", "point this at a different checkout", "why does
-  forge_health say not configured", "ask me for the token again", or when any forge_* tool reports a missing
-  setting (no token this session, no backend repo path, backend not reachable). It collects the developer's
-  backend URL, dev bearer token, and backend checkout path through forge_config_collect, which prompts them
-  directly in the host UI one input at a time — no environment variables, no files to edit, and nothing typed
-  into the chat.
+  This skill should be used when the user asks to "set up skill forge", "configure the plugin", "sign in to
+  Pivotly", "log in", "connect my backend", "change the backend URL", "point this at a different checkout",
+  "switch accounts", "add the write scope", "why does forge_health say not signed in", or when any forge_* tool
+  reports a missing setting (not signed in, no backend repo path, backend not reachable). Sign-in is a one-time
+  browser round-trip (forge_auth_login, Microsoft Entra ID); the backend URL is auto-detected; the checkout path
+  is prompted for in the host UI (forge_config_collect). No environment variables, no files to edit, and no
+  tokens typed into the chat.
 metadata:
-  version: "0.1.0"
+  version: "0.3.0"
 ---
 
 # Forge Setup
 
-Installing the plugin is the whole install. Every per-developer value is collected by **prompting the developer directly** — `forge_config_collect` opens one input field at a time in the host's own UI. Values take effect immediately, no restart.
+Installing the plugin is the whole install. Everything per-developer is either detected, prompted for in the host's own UI, or obtained by signing in — never typed into the chat, never put in an environment variable, never edited into a file.
 
-**Never ask for a setting in conversation when `forge_config_collect` can prompt for it.** A value typed into a prompt goes straight to the MCP server; a value typed into chat is in the transcript forever. That difference is the whole point, and it matters most for the token.
+## What there is to set up
 
-**Never** tell the developer to set an environment variable, create a `.env`, or edit a config file by hand.
-
-## The three settings
-
-| Setting | Prompted for | Where it lives | Needed by |
+| Item | How it is obtained | When | Where it lives |
 |---|---|---|---|
-| `api_base_url` | Once — the prompt is pre-filled with `http://localhost:3000`, so accepting it is one keystroke | `~/.pivotly-skill-forge/config.json` (mode 600) | `forge_health`, `forge_request`, `forge_openapi`, api-verify |
-| `token` | **Once per session** | The server process's memory only — **never written to disk** | `forge_request`, authenticated probes |
-| `backend_path` | Once | `~/.pivotly-skill-forge/config.json` (mode 600) | `forge_git_state`, codebase-mine, the session hook |
+| **Sign-in** (credentials) | `forge_auth_login` opens the Microsoft sign-in page in the browser; the redirect lands on a loopback port and the plugin saves an access **and refresh** token | **Once per machine.** Later sessions refresh silently; a browser is needed again only if the refresh token is revoked or ~90 days idle | `~/.pivotly-skill-forge/token.json`, mode 600 |
+| `api_base_url` | `forge_health` probes the usual local ports (3000, 8080, 8081); when exactly one answers and nothing was stored, it is remembered | Automatic; prompt only if detection finds nothing or several | `~/.pivotly-skill-forge/config.json`, mode 600 |
+| `backend_path` | `forge_config_collect(keys: ["backend_path"])` — one input field in the host UI | Once, the first time codebase-mine needs the repo | `config.json` |
+| `oidc_*` (issuer, client id, scopes, redirect) | Built-in Pivotly defaults; override with `forge_config_set` only for another tenant or to add a write scope | Rarely | `config.json` when overridden |
 
-The token being session-scoped is deliberate, not a limitation: nothing token-shaped is ever on the filesystem to leak, sync to a backup, or need rotating. Re-prompting each session is the cost, and it is one paste.
+The OIDC defaults are Pivotly's public client registration — the same values the Portal frontend ships to every browser — so there is nothing secret to distribute and nothing for a developer to look up.
 
 ## Procedure
 
 ### 1. Start from what is already there
-Call `forge_config_status` first. Only ask for what is missing or what the developer said they want to change. Never re-ask for a value that is already stored — say what is set (the token shows only as `••••1234`) and move on.
+Call `forge_config_status`. It reports `auth.signed_in` (with account and expiry), the backend URL and where it came from, the checkout path, and a `missing` list. Never ask for anything that is already there.
 
-### 2. Prompt only for what the task needs
-Call `forge_config_collect` with the `keys` the work actually needs, not all three up front:
-- Reading the repo (codebase-mine) → `forge_config_collect(keys: ["backend_path"])`.
-- Probing the API (api-verify) → `forge_config_collect(keys: ["api_base_url", "token"])`.
-- A full close-gaps run or an explicit "set it all up" → `forge_config_collect()` with no keys.
+### 2. Sign in — only when a task needs the API
+Reading the repo (codebase-mine) needs no sign-in. Probing the API (api-verify, `forge_request`) does.
 
-It prompts one input at a time, in the order given, skipping anything already available. Say in one short line what you are about to ask for, then call it — do not narrate each field as it appears.
+- If `auth.signed_in` is false: say in one line that a browser window will open for the Microsoft sign-in, then call `forge_auth_login`. Expect the developer to switch to the browser; the call waits up to two minutes.
+- If it returns `status: "waiting_for_sign_in"`, tell the developer to finish in the browser (give them `auth_url` if `browser_opened` is false), then call `forge_auth_login` again to pick up the result.
+- If it returns `hint`, relay the hint as-is — it names the fix (unregistered redirect URI, consent, wrong tenant account) — and offer to try again.
+- Then call `forge_health`. `auth.probe.outcome`:
+  - `accepted` → done; the report shows who the backend thinks the user is.
+  - `authenticated_not_provisioned` → the sign-in is fine but this account has no IAM user in this backend's database. Fix: open the Portal frontend against this backend once while signed in as this account (that provisions the user), then re-run `forge_health`. **Do not** re-trigger sign-in — it will not help.
+  - `rejected` → `forge_auth_login(force: true)`; if still rejected, the backend validates a different tenant/audience than the plugin signs in to — compare the backend's `OIDC_ISSUER_URL`/`OIDC_AUDIENCE` with `forge_config_status → oidc`.
 
-To change a value the developer already has, pass `force: true` for that key ("point it at port 4000" → `forge_config_collect(keys: ["api_base_url"], force: true)`).
+Switching accounts, or picking up a newly added scope: `forge_auth_login(force: true)`. Signing out: `forge_auth_logout`.
 
-If it returns `error: "This host does not support input prompts"`, that host has no elicitation support. Only then fall back to asking in conversation, one at a time, and storing each with `forge_config_set` — and say once, plainly, that a token typed into chat stays in the transcript.
+### 3. Backend URL — let detection do it
+Call `forge_health`. With nothing stored, it probes the usual local ports and remembers the single one that answers (`auto_configured` in the report). Prompt only when it says so:
+- Several answered → ask which is the core backend, then `forge_config_set(api_base_url: …)`.
+- None answered → the usual cause is the backend not running; ask before assuming the URL is wrong. Another port → `forge_config_collect(keys: ["api_base_url"], force: true)`; the prompt is pre-filled with whatever answers.
 
-### 3. Validation happens as each answer arrives
-`forge_config_collect` validates every value and re-prompts once with the error shown. `forge_config_set` applies the same rules when you use it directly:
-- A non-local `api_base_url` is **refused** by both tools. Relay the refusal, ask whether it is genuinely a dev environment, and only then re-run with `allow_remote: true` — `forge_config_collect(keys: ["api_base_url"], force: true, allow_remote: true)` or `forge_config_set(api_base_url, allow_remote: true)`. Never pass `allow_remote` on your own initiative; without it the prompt will refuse the same value every time.
-- `backend_path` must exist and be a git checkout. `~`, quoted paths, and Git Bash / WSL spellings (`/c/…`, `/mnt/c/…`) are normalized for them.
-- A placeholder-looking token is refused. Ask for the real one.
+A non-local URL is **refused** unless the user explicitly confirms it is a dev environment; only then re-run with `allow_remote: true`. Never pass it on your own initiative.
 
-Relay a rejection as the plain sentence it is, then ask again. Do not work around a refusal.
+### 4. Checkout path — prompt when the repo is first needed
+`forge_config_collect(keys: ["backend_path"])`. It must exist and be a git checkout; `~`, quoted paths, and Git Bash / WSL spellings are normalized. Then `forge_git_state` and relay its reminders (branch, behind origin, dirty files).
 
-### 4. Confirm it actually works
-After storing, verify rather than assert:
-- Token or URL set → call `forge_health`. Report `reachable`, whether the token was accepted, and whether a spec is served. If it is unreachable, the usual cause is the backend not running — ask before assuming the URL is wrong.
-- `backend_path` set → call `forge_git_state`. Relay any reminders (wrong branch, behind `origin/main`, dirty files).
+If `forge_config_collect` reports that the host has no form prompts, only then ask for the path in conversation and store it with `forge_config_set(backend_path)`.
 
-Close with one line of what is now configured and what it unlocks. If something is still missing, say which skill stays unavailable until it is set.
+### 5. Confirm
+Close with one line: who is signed in, which backend URL, which checkout, and which skill each unlocks. If something is still missing, name the skill that stays unavailable until it is set.
 
-## Handling the token
-The token is entered into a prompt, not into the chat, so it never has to reach the transcript or your context. Keep it that way:
-- Never echo the token, quote it back, or write it into a file, skill, or commit.
-- Refer to it as "your dev token" or by its `••••1234` hint.
-- The MCP server redacts it from every tool output automatically.
-- Never ask the developer to paste it into the conversation while `forge_config_collect` is available. If one has already been given in chat, store it with `forge_config_set` and do not repeat it back.
-- The prompt field is **not masked** — MCP form elicitation has no password type. Never suggest putting a production credential in it.
-
-If the token is rejected (`forge_health` shows `accepted: false`), say it was rejected, never quote it, and call `forge_config_collect(keys: ["token"], force: true)` for a current one.
-
-At the start of each session the token is simply absent. That is expected — not an error, and not something the developer misconfigured. Prompt for it when the first task needs it.
-
-## Changing and clearing
-- Rotated token, moved checkout, different port → `forge_config_collect(keys: [...], force: true)`.
-- Leaving the machine, or wiping a bad value → `forge_config_clear`. Confirm before clearing everything; clearing the token alone needs no ceremony and only drops it from memory.
-- The config is per developer and global to their machine, not per project. Changing it affects every project where they use this plugin — mention that when they switch a value.
+## Hard rules
+- **Never ask the developer to paste a token.** `forge_config_set(token)` and the `token` prompt key exist only as a fallback for a machine with no browser at all; say so if you ever use them, and note that such a value lives in memory for this session only.
+- Never echo, quote, log, or write down a token. The MCP server redacts every token from every output; refer to the sign-in by the account email `forge_config_status` shows.
+- Never tell the developer to set an environment variable, create a `.env`, or edit `config.json` or `token.json` by hand.
+- Sign-in is per machine and global to the developer, not per project. Mention that when they switch accounts.
 
 ## Pitfalls
-- The settings are read fresh on every call. If a tool still reports a value missing right after a successful `forge_config_set`, the write itself failed — check the `saved_to` path in the response instead of suggesting a restart.
-- A restart of the MCP server (new session, or the host reconnecting it) clears the token by design. Prompt again; do not treat it as a bug or go looking for it in the config file.
-- Environment variables of the same name still work as a fallback for CI. If `forge_config_status` reports `source: "env"`, a stored value would override it — worth saying only if the developer is confused about which value is in play.
+- Settings are read fresh on every call. If a tool still reports something missing right after a successful set, the write failed — check `saved_to` rather than suggesting a restart.
+- A stale `token.json` from a different issuer/client is ignored, not used. `forge_config_status → auth.note` says so; `forge_auth_login` replaces it.
+- Adding a write scope to `oidc_scopes` changes nothing until `forge_auth_login(force: true)` issues a token that carries it. The backend still enforces the user's own role — the scope opens the door, the role decides.
 - If the `forge_*` tools do not exist at all, the MCP server is not built. Offer `cd mcp-server && npm install && npm run build`, then a session restart. No amount of configuring fixes that one.

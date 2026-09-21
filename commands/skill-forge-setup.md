@@ -1,13 +1,14 @@
 ---
-description: Configure pivotly-skill-forge — backend URL, dev token, and backend checkout path — by answering a few questions
+description: Set up pivotly-skill-forge — sign in to Pivotly in the browser, detect the backend URL, and store the backend checkout path
 ---
 
 Run the **forge-setup** skill now.
 
-Start with `forge_config_status` so nothing already available is asked for again, then call `forge_config_collect` to prompt the developer for what is missing — one input at a time, in the host's own UI. Verify with `forge_health` and `forge_git_state` before reporting back.
+Start with `forge_config_status` so nothing already available is asked for again. Then, in this order and only for what is missing:
+1. `forge_health` — detects and remembers the backend URL on the usual local ports; prompt with `forge_config_collect(keys: ["api_base_url"], force: true)` only if it says several or none answered.
+2. `forge_auth_login` — say in one line that a browser window will open for the Microsoft sign-in; it is a one-time step per machine. Then `forge_health` again to confirm `auth.probe.outcome` is `accepted`.
+3. `forge_config_collect(keys: ["backend_path"])` — one input field in the host UI; verify with `forge_git_state`.
 
 $ARGUMENTS
 
-If the arguments above name specific settings (for example "token" or "just the backend path"), pass those as `keys`. If they are empty, call `forge_config_collect()` with no keys. If they ask to change something already set, add `force: true`.
-
-Do not ask for values in conversation while the prompts are available, and never tell the developer to set an environment variable or edit a file. The token is session-scoped — expect to prompt for it every session.
+If the arguments above name specific settings (for example "sign in", "just the backend path", "switch account"), do only those; "switch account" or "add the write scope" means `forge_auth_login(force: true)`. Never ask the developer to paste a token, set an environment variable, or edit a file.

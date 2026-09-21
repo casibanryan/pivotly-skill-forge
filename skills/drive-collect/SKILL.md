@@ -21,7 +21,7 @@ From the skill's "Not covered by source docs" (or the user's request), list each
 
 ### 2. Search
 For each wanted item, search Drive with the name and alternates. Prefer:
-- documents in a folder the user has named as the reference folder (ask once if unknown);
+- documents in the org's **Product development** folder (the reference folder by default), or in a folder the user names; ask once only if neither yields candidates;
 - most recently modified when several match;
 - Google Docs / Markdown / PDF over slides or spreadsheets unless the item is tabular by nature.
 Show candidates as a table: title · folder · modified · owner · why it matched. Let the user confirm or reject before fetching contents.

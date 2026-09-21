@@ -4379,19 +4379,19 @@ var require_core = __commonJS({
         this.addKeyword("$async");
       }
       _addDefaultMetaSchema() {
-        const { $data, meta, schemaId } = this.opts;
+        const { $data, meta: meta2, schemaId } = this.opts;
         let _dataRefSchema = $dataRefSchema;
         if (schemaId === "id") {
           _dataRefSchema = { ...$dataRefSchema };
           _dataRefSchema.id = _dataRefSchema.$id;
           delete _dataRefSchema.$id;
         }
-        if (meta && $data)
+        if (meta2 && $data)
           this.addMetaSchema(_dataRefSchema, _dataRefSchema[schemaId], false);
       }
       defaultMeta() {
-        const { meta, schemaId } = this.opts;
-        return this.opts.defaultMeta = typeof meta == "object" ? meta[schemaId] || meta : void 0;
+        const { meta: meta2, schemaId } = this.opts;
+        return this.opts.defaultMeta = typeof meta2 == "object" ? meta2[schemaId] || meta2 : void 0;
       }
       validate(schemaKeyRef, data) {
         let v;
@@ -4411,12 +4411,12 @@ var require_core = __commonJS({
         const sch = this._addSchema(schema, _meta);
         return sch.validate || this._compileSchemaEnv(sch);
       }
-      compileAsync(schema, meta) {
+      compileAsync(schema, meta2) {
         if (typeof this.opts.loadSchema != "function") {
           throw new Error("options.loadSchema should be a function");
         }
         const { loadSchema } = this.opts;
-        return runCompileAsync.call(this, schema, meta);
+        return runCompileAsync.call(this, schema, meta2);
         async function runCompileAsync(_schema, _meta) {
           await loadMetaSchema.call(this, _schema.$schema);
           const sch = this._addSchema(_schema, _meta);
@@ -4448,7 +4448,7 @@ var require_core = __commonJS({
           if (!this.refs[ref])
             await loadMetaSchema.call(this, _schema.$schema);
           if (!this.refs[ref])
-            this.addSchema(_schema, ref, meta);
+            this.addSchema(_schema, ref, meta2);
         }
         async function _loadSchema(ref) {
           const p = this._loading[ref];
@@ -4665,7 +4665,7 @@ var require_core = __commonJS({
           }
         }
       }
-      _addSchema(schema, meta, baseId, validateSchema = this.opts.validateSchema, addSchema = this.opts.addUsedSchema) {
+      _addSchema(schema, meta2, baseId, validateSchema = this.opts.validateSchema, addSchema = this.opts.addUsedSchema) {
         let id;
         const { schemaId } = this.opts;
         if (typeof schema == "object") {
@@ -4681,7 +4681,7 @@ var require_core = __commonJS({
           return sch;
         baseId = (0, resolve_1.normalizeId)(id || baseId);
         const localRefs = resolve_1.getSchemaRefs.call(this, schema, baseId);
-        sch = new compile_1.SchemaEnv({ schema, schemaId, meta, baseId, localRefs });
+        sch = new compile_1.SchemaEnv({ schema, schemaId, meta: meta2, baseId, localRefs });
         this._cache.set(sch.schema, sch);
         if (addSchema && !baseId.startsWith("#")) {
           if (baseId)
@@ -4719,11 +4719,11 @@ var require_core = __commonJS({
     Ajv2.ValidationError = validation_error_1.default;
     Ajv2.MissingRefError = ref_error_1.default;
     exports.default = Ajv2;
-    function checkOptions(checkOpts, options, msg, log = "error") {
+    function checkOptions(checkOpts, options, msg, log2 = "error") {
       for (const key in checkOpts) {
         const opt = key;
         if (opt in options)
-          this.logger[log](`${msg}: option ${key}. ${checkOpts[opt]}`);
+          this.logger[log2](`${msg}: option ${key}. ${checkOpts[opt]}`);
       }
     }
     function getSchEnv(keyRef) {
@@ -13801,13 +13801,13 @@ var $ZodRegistry = class {
     this._idmap = /* @__PURE__ */ new Map();
   }
   add(schema, ..._meta) {
-    const meta = _meta[0];
-    this._map.set(schema, meta);
-    if (meta && typeof meta === "object" && "id" in meta) {
-      if (this._idmap.has(meta.id)) {
-        throw new Error(`ID ${meta.id} already exists in the registry`);
+    const meta2 = _meta[0];
+    this._map.set(schema, meta2);
+    if (meta2 && typeof meta2 === "object" && "id" in meta2) {
+      if (this._idmap.has(meta2.id)) {
+        throw new Error(`ID ${meta2.id} already exists in the registry`);
       }
-      this._idmap.set(meta.id, schema);
+      this._idmap.set(meta2.id, schema);
     }
     return this;
   }
@@ -13817,9 +13817,9 @@ var $ZodRegistry = class {
     return this;
   }
   remove(schema) {
-    const meta = this._map.get(schema);
-    if (meta && typeof meta === "object" && "id" in meta) {
-      this._idmap.delete(meta.id);
+    const meta2 = this._map.get(schema);
+    if (meta2 && typeof meta2 === "object" && "id" in meta2) {
+      this._idmap.delete(meta2.id);
     }
     this._map.delete(schema);
     return this;
@@ -14748,9 +14748,9 @@ var JSONSchemaGenerator = class {
         }
       }
     }
-    const meta = this.metadataRegistry.get(schema);
-    if (meta)
-      Object.assign(result.schema, meta);
+    const meta2 = this.metadataRegistry.get(schema);
+    if (meta2)
+      Object.assign(result.schema, meta2);
     if (this.io === "input" && isTransforming(schema)) {
       delete result.schema.examples;
       delete result.schema.default;
@@ -15072,8 +15072,8 @@ var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
   };
   inst.clone = (_def, params) => clone(inst, _def, params);
   inst.brand = () => inst;
-  inst.register = ((reg, meta) => {
-    reg.add(inst, meta);
+  inst.register = ((reg, meta2) => {
+    reg.add(inst, meta2);
     return inst;
   });
 });
@@ -15354,8 +15354,8 @@ var ZodType2 = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   };
   inst.clone = (def2, params) => clone(inst, def2, params);
   inst.brand = () => inst;
-  inst.register = ((reg, meta) => {
-    reg.add(inst, meta);
+  inst.register = ((reg, meta2) => {
+    reg.add(inst, meta2);
     return inst;
   });
   inst.parse = (data, params) => parse2(inst, data, params, { callee: inst.parse });
@@ -20458,8 +20458,8 @@ function isCompletable(schema) {
   return !!schema && typeof schema === "object" && COMPLETABLE_SYMBOL in schema;
 }
 function getCompleter(schema) {
-  const meta = schema[COMPLETABLE_SYMBOL];
-  return meta?.complete;
+  const meta2 = schema[COMPLETABLE_SYMBOL];
+  return meta2?.complete;
 }
 var McpZodTypeKind;
 (function(McpZodTypeKind2) {
@@ -21440,14 +21440,57 @@ var StdioServerTransport = class {
 
 // src/index.ts
 import { execFile } from "node:child_process";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { join as join2 } from "node:path";
 import { promisify } from "node:util";
 
 // src/config.ts
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-var CONFIG_KEYS = ["api_base_url", "token", "backend_path"];
-var PERSISTED_KEYS = ["api_base_url", "backend_path"];
+var CONFIG_KEYS = [
+  "api_base_url",
+  "backend_path",
+  "oidc_issuer",
+  "oidc_client_id",
+  "oidc_scopes",
+  "oidc_redirect_uri",
+  "token"
+];
+var PERSISTED_KEYS = [
+  "api_base_url",
+  "backend_path",
+  "oidc_issuer",
+  "oidc_client_id",
+  "oidc_scopes",
+  "oidc_redirect_uri"
+];
+var DEFAULT_API_BASE_URL = "http://localhost:3000";
+var API_URL_CANDIDATES = ["http://localhost:3000", "http://localhost:8080", "http://localhost:8081"];
+var DEFAULT_OIDC_ISSUER = "https://login.microsoftonline.com/39f6cf5e-725d-4087-a1e3-e7b4442c867e/v2.0";
+var DEFAULT_OIDC_CLIENT_ID = "3043e9d3-28e6-4002-ab31-c07fcf418205";
+var DEFAULT_OIDC_SCOPES = "openid offline_access profile https://pivotlyidentityplatformdev.onmicrosoft.com/api/api.read";
+var DEFAULT_OIDC_REDIRECT_URI = "http://localhost:8642/callback";
+var OIDC_REDIRECT_FALLBACK_PORTS = [53682];
+var DEFAULTS = {
+  api_base_url: DEFAULT_API_BASE_URL,
+  oidc_issuer: DEFAULT_OIDC_ISSUER,
+  oidc_client_id: DEFAULT_OIDC_CLIENT_ID,
+  oidc_scopes: DEFAULT_OIDC_SCOPES,
+  oidc_redirect_uri: DEFAULT_OIDC_REDIRECT_URI
+};
+var ENV_FALLBACK = {
+  api_base_url: "PIVOTLY_API_BASE_URL",
+  backend_path: "PIVOTLY_BACKEND_PATH",
+  oidc_issuer: "PIVOTLY_OIDC_ISSUER",
+  oidc_client_id: "PIVOTLY_OIDC_CLIENT_ID",
+  oidc_scopes: "PIVOTLY_OIDC_SCOPES",
+  oidc_redirect_uri: "PIVOTLY_OIDC_REDIRECT_URI",
+  token: "PIVOTLY_MCP_TOKEN"
+};
+var CONFIG_PATH = process.env.PIVOTLY_SKILL_FORGE_CONFIG?.trim() || join(homedir(), ".pivotly-skill-forge", "config.json");
+var CONFIG_DIR = dirname(CONFIG_PATH);
+var TOKEN_CACHE_PATH = process.env.PIVOTLY_SKILL_FORGE_TOKEN_CACHE?.trim() || join(CONFIG_DIR, "token.json");
 var sessionToken = "";
 function setSessionToken(value) {
   sessionToken = value.trim();
@@ -21458,13 +21501,6 @@ function clearSessionToken() {
 function getSessionToken() {
   return sessionToken;
 }
-var DEFAULT_API_BASE_URL = "http://localhost:3000";
-var ENV_FALLBACK = {
-  api_base_url: "PIVOTLY_API_BASE_URL",
-  token: "PIVOTLY_MCP_TOKEN",
-  backend_path: "PIVOTLY_BACKEND_PATH"
-};
-var CONFIG_PATH = process.env.PIVOTLY_SKILL_FORGE_CONFIG?.trim() || join(homedir(), ".pivotly-skill-forge", "config.json");
 function expandHome(p) {
   if (p === "~") return homedir();
   if (p.startsWith("~/") || p.startsWith("~\\")) return join(homedir(), p.slice(2));
@@ -21486,7 +21522,7 @@ function readStored() {
   }
 }
 function writeStored(next) {
-  mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+  mkdirSync(CONFIG_DIR, { recursive: true });
   const body = {};
   for (const k of PERSISTED_KEYS) if (next[k]) body[k] = next[k];
   writeFileSync(CONFIG_PATH, `${JSON.stringify(body, null, 2)}
@@ -21496,15 +21532,16 @@ function writeStored(next) {
   } catch {
   }
 }
-function resolveOne(key, stored, fallback) {
+function resolveOne(key, stored) {
   const fromFile = stored[key];
   if (fromFile) return { value: fromFile, source: "config" };
   const fromEnv = process.env[ENV_FALLBACK[key]]?.trim();
   if (fromEnv) return { value: fromEnv, source: "env" };
-  if (fallback) return { value: fallback, source: "default" };
+  const def = DEFAULTS[key];
+  if (def) return { value: def, source: "default" };
   return { value: "", source: "unset" };
 }
-function resolveToken() {
+function resolveTokenOverride() {
   if (sessionToken) return { value: sessionToken, source: "session" };
   const fromEnv = process.env[ENV_FALLBACK.token]?.trim();
   if (fromEnv) return { value: fromEnv, source: "env" };
@@ -21512,14 +21549,19 @@ function resolveToken() {
 }
 function loadConfig() {
   const stored = readStored();
-  const api = resolveOne("api_base_url", stored, DEFAULT_API_BASE_URL);
+  const api = resolveOne("api_base_url", stored);
+  const backend = resolveOne("backend_path", stored);
+  const issuer = resolveOne("oidc_issuer", stored);
   return {
     apiBaseUrl: { value: api.value.replace(/\/+$/, ""), source: api.source },
-    token: resolveToken(),
-    backendPath: (() => {
-      const r = resolveOne("backend_path", stored);
-      return r.value ? { value: expandHome(r.value), source: r.source } : r;
-    })()
+    backendPath: backend.value ? { value: expandHome(backend.value), source: backend.source } : backend,
+    oidc: {
+      issuer: { value: issuer.value.replace(/\/+$/, ""), source: issuer.source },
+      clientId: resolveOne("oidc_client_id", stored),
+      scopes: resolveOne("oidc_scopes", stored),
+      redirectUri: resolveOne("oidc_redirect_uri", stored)
+    },
+    token: resolveTokenOverride()
   };
 }
 function purgeLegacyStoredToken() {
@@ -21536,6 +21578,7 @@ function purgeLegacyStoredToken() {
   }
 }
 var LOCAL_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]", "host.docker.internal"]);
+var LOOPBACK_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 function isLocalHost(host) {
   const h = host.toLowerCase();
   return LOCAL_HOSTS.has(h) || h.endsWith(".local") || h.endsWith(".localhost") || /^192\.168\./.test(h) || /^10\./.test(h);
@@ -21547,7 +21590,7 @@ function validateApiBaseUrl(raw, allowRemote) {
   try {
     url = new URL(trimmed);
   } catch {
-    return { ok: false, error: `Not a valid URL: ${trimmed}. Include the scheme, e.g. http://localhost:3000` };
+    return { ok: false, error: `Not a valid URL: ${trimmed}. Include the scheme, e.g. http://localhost:8081` };
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     return { ok: false, error: `Unsupported scheme '${url.protocol}'. Use http:// or https://` };
@@ -21568,7 +21611,7 @@ function validateToken(raw) {
   const trimmed = raw.trim().replace(/^Bearer\s+/i, "");
   if (!trimmed) return { ok: false, error: "token is empty." };
   if (/^(dev-token-placeholder|<.*>|your[-_]token|xxx+)$/i.test(trimmed)) {
-    return { ok: false, error: "That looks like a placeholder, not a real token. Ask the user for the dev bearer token issued by the backend." };
+    return { ok: false, error: "That looks like a placeholder, not a real token. Prefer forge_auth_login; a manual token must be a real bearer token." };
   }
   if (/[\s -]/.test(trimmed)) {
     return {
@@ -21577,8 +21620,49 @@ function validateToken(raw) {
     };
   }
   if (trimmed.length < 8) {
-    return { ok: false, error: `That is only ${trimmed.length} characters, which is not a bearer token. Ask for the full dev token.` };
+    return { ok: false, error: `That is only ${trimmed.length} characters, which is not a bearer token.` };
   }
+  return { ok: true, value: trimmed };
+}
+function validateOidcIssuer(raw) {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) return { ok: false, error: "oidc_issuer is empty." };
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { ok: false, error: `Not a valid URL: ${trimmed}` };
+  }
+  if (url.protocol !== "https:" && !isLocalHost(url.hostname)) {
+    return { ok: false, error: "The OIDC issuer must be https:// (a token endpoint over plain http would leak the tokens)." };
+  }
+  return { ok: true, value: trimmed };
+}
+function validateOidcClientId(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, error: "oidc_client_id is empty." };
+  if (/\s/.test(trimmed)) return { ok: false, error: "A client id cannot contain whitespace." };
+  return { ok: true, value: trimmed };
+}
+function validateOidcScopes(raw) {
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { ok: false, error: "oidc_scopes is empty." };
+  const warning = parts.includes("offline_access") ? void 0 : "Scopes do not include offline_access, so no refresh token will be issued and sign-in will be required every time the access token expires (about an hour).";
+  return { ok: true, value: parts.join(" "), warning };
+}
+function validateOidcRedirectUri(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, error: "oidc_redirect_uri is empty." };
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { ok: false, error: `Not a valid URL: ${trimmed}` };
+  }
+  if (url.protocol !== "http:" || !LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) {
+    return { ok: false, error: "The redirect URI must be a loopback address the plugin can listen on, e.g. http://localhost:8642/callback" };
+  }
+  if (!url.port) return { ok: false, error: "The redirect URI needs an explicit port, e.g. http://localhost:8642/callback" };
   return { ok: true, value: trimmed };
 }
 function windowsEquivalent(p) {
@@ -21605,36 +21689,484 @@ function tokenHint(token) {
   if (!token) return "";
   return token.length <= 8 ? `${"\u2022".repeat(token.length)}` : `\u2022\u2022\u2022\u2022${token.slice(-4)} (${token.length} chars)`;
 }
+function idHint(id) {
+  return id.length > 8 ? `${id.slice(0, 8)}\u2026` : id;
+}
+
+// src/auth.ts
+import { spawn } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { chmodSync as chmodSync2, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { createServer } from "node:http";
+import { dirname as dirname2 } from "node:path";
+var SKEW_S = 60;
+var LOGIN_TIMEOUT_MS = 3e5;
+var DISCOVERY_TTL_MS = 60 * 60 * 1e3;
+var HTTP_TIMEOUT_MS = 15e3;
+var log = (line) => console.error(`[skill-forge][auth] ${line}`);
+var b64url = (buf) => buf.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+var nowS = () => Math.floor(Date.now() / 1e3);
+function decodeJwtPayload(token) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const json = Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function accountFromClaims(claims) {
+  if (!claims) return void 0;
+  const str = (k) => typeof claims[k] === "string" ? claims[k] : void 0;
+  const emails = Array.isArray(claims.emails) ? claims.emails.find((e) => typeof e === "string") : void 0;
+  const preferred = str("preferred_username");
+  const email2 = str("email") ?? str("upn") ?? str("unique_name") ?? (preferred && preferred.includes("@") ? preferred : void 0) ?? emails;
+  const out = { name: str("name"), email: email2, oid: str("oid"), sub: str("sub"), tid: str("tid") };
+  return Object.values(out).some(Boolean) ? out : void 0;
+}
+async function fetchWithTimeout(url, init = {}, timeoutMs = HTTP_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+var AAD_HINTS = [
+  [/AADSTS50011/, "The redirect URI is not registered on the app. It must be listed under 'Mobile and desktop applications' (a public client), exactly as used, e.g. http://localhost:8642/callback. Try forge_config_set(oidc_redirect_uri: 'http://localhost:53682/callback') if that port is the registered one."],
+  [/AADSTS9002327/, "The redirect URI is registered as a Single-Page Application, whose codes can only be redeemed cross-origin from a browser. A native client needs it under 'Mobile and desktop applications' instead."],
+  [/AADSTS7000218/, "The app registration requires a client secret. Enable 'Allow public client flows' on the registration (Authentication \u2192 Advanced settings) \u2014 a plugin has no secret to send."],
+  [/AADSTS6500[14]/, "Consent was not granted for the requested scope. Sign in again and accept the consent prompt, or ask an admin to grant it for the tenant."],
+  [/AADSTS70011|AADSTS650053|invalid_scope/, "The requested scope is not valid for this app. Check oidc_scopes \u2014 the API scope must be spelled exactly as the registration exposes it."],
+  [/AADSTS70008|AADSTS50173|AADSTS700082|AADSTS50076|AADSTS50079|AADSTS50158|interaction_required|invalid_grant/, "The saved sign-in is no longer valid (expired, revoked, or extra verification is now required). A fresh browser sign-in fixes it."],
+  [/AADSTS900144/, "A required parameter was missing from the authorization request \u2014 usually a shell mangled the URL at '&'. Open the auth_url from this tool's output directly rather than via a shell."],
+  [/AADSTS50020|AADSTS50034|AADSTS90072/, "That account does not belong to the Pivotly tenant. Sign in with a Pivotly work account."],
+  [/AADSTS16000|AADSTS50105|AADSTS50131/, "The account is not assigned to this app or is blocked by a Conditional Access policy. Ask an admin to assign the user to the app registration."]
+];
+function explainAadError(...texts) {
+  const joined = texts.filter(Boolean).join(" ");
+  const code = /AADSTS\d+/.exec(joined)?.[0];
+  for (const [re, hint] of AAD_HINTS) if (re.test(joined)) return { code, hint };
+  return { code };
+}
+var metadataCache = /* @__PURE__ */ new Map();
+async function discover(issuer) {
+  const key = issuer.replace(/\/+$/, "");
+  const hit = metadataCache.get(key);
+  if (hit && Date.now() - hit.at < DISCOVERY_TTL_MS) return hit.meta;
+  const url = `${key}/.well-known/openid-configuration`;
+  let res;
+  try {
+    res = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
+  } catch (e) {
+    throw new Error(`Could not reach the identity provider for discovery at ${url}: ${e instanceof Error ? e.message : String(e)}. Check network/VPN.`);
+  }
+  if (!res.ok) throw new Error(`OIDC discovery failed: ${res.status} from ${url}. Check oidc_issuer.`);
+  const doc = await res.json();
+  if (!doc.authorization_endpoint || !doc.token_endpoint || !doc.issuer) {
+    throw new Error(`OIDC discovery document at ${url} is missing authorization_endpoint/token_endpoint/issuer.`);
+  }
+  const meta2 = {
+    issuer: doc.issuer,
+    authorization_endpoint: doc.authorization_endpoint,
+    token_endpoint: doc.token_endpoint,
+    end_session_endpoint: doc.end_session_endpoint
+  };
+  metadataCache.set(key, { at: Date.now(), meta: meta2 });
+  return meta2;
+}
+var lastCache = null;
+function isCacheShape(v) {
+  if (!v || typeof v !== "object") return false;
+  const c = v;
+  return typeof c.access_token === "string" && typeof c.expires_at === "number" && typeof c.issuer === "string" && typeof c.client_id === "string";
+}
+function readCache(cfg = loadConfig()) {
+  try {
+    if (!existsSync2(TOKEN_CACHE_PATH)) return null;
+    const parsed = JSON.parse(readFileSync2(TOKEN_CACHE_PATH, "utf8"));
+    if (!isCacheShape(parsed)) return null;
+    lastCache = parsed;
+    if (parsed.issuer.replace(/\/+$/, "") !== cfg.oidc.issuer.value || parsed.client_id !== cfg.oidc.clientId.value) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function writeCache(cache) {
+  mkdirSync2(dirname2(TOKEN_CACHE_PATH), { recursive: true });
+  writeFileSync2(TOKEN_CACHE_PATH, `${JSON.stringify(cache, null, 2)}
+`, { encoding: "utf8", mode: 384 });
+  try {
+    chmodSync2(TOKEN_CACHE_PATH, 384);
+  } catch {
+  }
+  lastCache = cache;
+}
+function clearCache() {
+  try {
+    if (!existsSync2(TOKEN_CACHE_PATH)) return false;
+    rmSync(TOKEN_CACHE_PATH, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isFresh(cache) {
+  return Boolean(cache && cache.access_token && cache.expires_at - SKEW_S > nowS());
+}
+function redactionSecrets() {
+  const out = /* @__PURE__ */ new Set();
+  const cfg = loadConfig();
+  if (cfg.token.value) out.add(cfg.token.value);
+  const s = getSessionToken();
+  if (s) out.add(s);
+  for (const c of [lastCache, readCache(cfg)]) {
+    if (!c) continue;
+    for (const v of [c.access_token, c.refresh_token, c.id_token]) if (v && v.length >= 8) out.add(v);
+  }
+  return [...out];
+}
+async function tokenRequest(meta2, form) {
+  const body = new URLSearchParams(form).toString();
+  let res;
+  try {
+    res = await fetchWithTimeout(meta2.token_endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body
+    });
+  } catch (e) {
+    throw new Error(`Token endpoint unreachable: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const text2 = await res.text();
+  let json = {};
+  try {
+    json = JSON.parse(text2);
+  } catch {
+  }
+  if (!res.ok || json.error) {
+    const err = new Error(`${json.error ?? `HTTP ${res.status}`}${json.error_description ? `: ${json.error_description}` : ""}`);
+    err.oauth_error = json.error ?? `http_${res.status}`;
+    throw err;
+  }
+  return json;
+}
+function toCache(t, cfg, meta2, previous) {
+  if (!t.access_token) throw new Error("Token response had no access_token.");
+  if (t.token_type && !/^bearer$/i.test(t.token_type)) throw new Error(`Unexpected token_type '${t.token_type}' (expected Bearer).`);
+  const expiresIn = Number(t.expires_in ?? 3600);
+  const idClaims = t.id_token ? decodeJwtPayload(t.id_token) : null;
+  const account = accountFromClaims(idClaims) ?? previous?.account ?? accountFromClaims(decodeJwtPayload(t.access_token));
+  return {
+    access_token: t.access_token,
+    // Entra rotates refresh tokens; when a response omits one, the previous stays valid.
+    refresh_token: t.refresh_token ?? previous?.refresh_token,
+    id_token: t.id_token ?? previous?.id_token,
+    token_type: "Bearer",
+    scope: t.scope ?? previous?.scope ?? cfg.oidc.scopes.value,
+    expires_at: nowS() + (Number.isFinite(expiresIn) ? expiresIn : 3600),
+    obtained_at: nowS(),
+    issuer: meta2.issuer.replace(/\/+$/, "") === cfg.oidc.issuer.value ? cfg.oidc.issuer.value : cfg.oidc.issuer.value,
+    client_id: cfg.oidc.clientId.value,
+    account
+  };
+}
+var refreshing = null;
+async function refresh(cache, cfg) {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const meta2 = await discover(cfg.oidc.issuer.value);
+    const t = await tokenRequest(meta2, {
+      grant_type: "refresh_token",
+      client_id: cfg.oidc.clientId.value,
+      refresh_token: cache.refresh_token,
+      scope: cfg.oidc.scopes.value
+    });
+    const next = toCache(t, cfg, meta2, cache);
+    writeCache(next);
+    log(`access token refreshed silently; expires in ${next.expires_at - nowS()}s`);
+    return next;
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+async function acquireToken(cfg = loadConfig(), opts = {}) {
+  if (cfg.token.value) return { ok: true, token: cfg.token.value, source: cfg.token.source === "session" ? "session" : "env" };
+  const cache = readCache(cfg);
+  if (!cache) {
+    const raw = existsSync2(TOKEN_CACHE_PATH);
+    return {
+      ok: false,
+      needs_login: true,
+      reason: raw ? "A saved sign-in exists but belongs to a different issuer/client than the current OIDC settings." : "Not signed in yet."
+    };
+  }
+  if (isFresh(cache) && !opts.forceRefresh) {
+    return { ok: true, token: cache.access_token, source: "cache", account: cache.account, expires_in_s: cache.expires_at - nowS() };
+  }
+  if (!cache.refresh_token) {
+    return { ok: false, needs_login: true, reason: "The saved access token has expired and no refresh token was issued (scopes lacked offline_access)." };
+  }
+  try {
+    const next = await refresh(cache, cfg);
+    return { ok: true, token: next.access_token, source: "refresh", account: next.account, expires_in_s: next.expires_at - nowS() };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const oauth = e.oauth_error;
+    if (oauth === "invalid_grant" || /AADSTS/.test(msg)) {
+      clearCache();
+      const { hint } = explainAadError(msg);
+      return { ok: false, needs_login: true, reason: "The saved sign-in could not be refreshed and was discarded.", detail: hint ?? msg };
+    }
+    return { ok: false, needs_login: true, reason: "Silent refresh failed (identity provider unreachable?).", detail: msg };
+  }
+}
+var pending = null;
+function currentLogin() {
+  if (pending && !pending.outcome && Date.now() > pending.deadline + 5e3) pending = null;
+  return pending;
+}
+function openBrowser(url) {
+  try {
+    const [cmd, args] = process.platform === "win32" ? ["rundll32", ["url.dll,FileProtocolHandler", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+    child.on("error", () => {
+    });
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function listenLoopback(hostname2, ports) {
+  let lastErr;
+  for (const port of ports) {
+    const server2 = createServer();
+    try {
+      await new Promise((resolve, reject) => {
+        server2.once("error", reject);
+        server2.listen(port, hostname2, () => resolve());
+      });
+      return { server: server2, port };
+    } catch (e) {
+      lastErr = e;
+      try {
+        server2.close();
+      } catch {
+      }
+    }
+  }
+  const code = lastErr?.code;
+  throw new Error(
+    code === "EADDRINUSE" ? `Ports ${ports.join(", ")} are all in use. Another sign-in may still be waiting (finish or cancel it), or another app holds the port.` : `Could not open the loopback redirect listener on ${hostname2}:${ports.join("|")}: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}`
+  );
+}
+var CALLBACK_PAGE = (title, body) => `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;line-height:1.5"><h2>${title}</h2><p>${body}</p></body></html>`;
+async function startLogin(cfg, opts = {}) {
+  const existing = currentLogin();
+  if (existing && !existing.outcome) return existing;
+  const meta2 = await discover(cfg.oidc.issuer.value);
+  const configured = new URL(cfg.oidc.redirectUri.value);
+  const ports = [Number(configured.port), ...OIDC_REDIRECT_FALLBACK_PORTS.filter((p) => p !== Number(configured.port))];
+  const { server: server2, port } = await listenLoopback(configured.hostname, ports);
+  const redirectUri = `${configured.protocol}//${configured.hostname}:${port}${configured.pathname}`;
+  if (port !== Number(configured.port)) log(`configured redirect port ${configured.port} unavailable; using registered alternate ${port}`);
+  const verifier = b64url(randomBytes(32));
+  const challenge = b64url(createHash("sha256").update(verifier).digest());
+  const state = b64url(randomBytes(16));
+  const nonce = b64url(randomBytes(16));
+  const authUrl = new URL(meta2.authorization_endpoint);
+  const params = {
+    client_id: cfg.oidc.clientId.value,
+    response_type: "code",
+    response_mode: "query",
+    redirect_uri: redirectUri,
+    scope: cfg.oidc.scopes.value,
+    state,
+    nonce,
+    code_challenge: challenge,
+    code_challenge_method: "S256"
+  };
+  if (opts.selectAccount) params.prompt = "select_account";
+  for (const [k, v] of Object.entries(params)) authUrl.searchParams.set(k, v);
+  const startedAt = Date.now();
+  const deadline = startedAt + LOGIN_TIMEOUT_MS;
+  const promise = new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      server2.close();
+      fn();
+    };
+    const timer = setTimeout(() => finish(() => reject(new Error("No sign-in completed within 5 minutes. Call forge_auth_login again to start over."))), LOGIN_TIMEOUT_MS);
+    timer.unref();
+    server2.on("request", (req, res) => {
+      const url = new URL(req.url ?? "/", `http://${configured.hostname}:${port}`);
+      if (req.method !== "GET" || url.pathname !== configured.pathname) {
+        res.writeHead(404, { "Content-Type": "text/plain" }).end("Not found");
+        return;
+      }
+      const q = url.searchParams;
+      if (q.get("error")) {
+        const desc = q.get("error_description") ?? "";
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(CALLBACK_PAGE("Sign-in did not complete", "You can close this window and return to your editor."));
+        finish(() => reject(Object.assign(new Error(`${q.get("error")}: ${desc}`), { oauth_error: q.get("error") })));
+        return;
+      }
+      if (q.get("state") !== state) {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" }).end(CALLBACK_PAGE("Sign-in rejected", "State mismatch \u2014 this response did not come from the sign-in this plugin started."));
+        return;
+      }
+      const code = q.get("code");
+      if (!code) {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" }).end(CALLBACK_PAGE("Sign-in rejected", "No authorization code in the response."));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(CALLBACK_PAGE("Signed in to Pivotly", "You can close this window and return to your editor."));
+      void (async () => {
+        try {
+          const t = await tokenRequest(meta2, {
+            grant_type: "authorization_code",
+            client_id: cfg.oidc.clientId.value,
+            code,
+            redirect_uri: redirectUri,
+            code_verifier: verifier,
+            scope: cfg.oidc.scopes.value
+          });
+          if (t.id_token) {
+            const claims = decodeJwtPayload(t.id_token);
+            if (!claims) throw new Error("id_token could not be decoded.");
+            if (claims.nonce !== nonce) throw new Error("id_token nonce mismatch \u2014 response did not match this sign-in attempt.");
+            if (claims.aud !== cfg.oidc.clientId.value) throw new Error(`id_token audience '${String(claims.aud)}' is not this client.`);
+            if (typeof claims.iss === "string" && claims.iss.replace(/\/+$/, "") !== cfg.oidc.issuer.value) {
+              throw new Error(`id_token issuer '${claims.iss}' does not match the configured issuer.`);
+            }
+          }
+          const cache = toCache(t, cfg, meta2);
+          writeCache(cache);
+          log(`signed in as ${cache.account?.email ?? cache.account?.name ?? "(unknown account)"}; access token expires in ${cache.expires_at - nowS()}s; refresh token ${cache.refresh_token ? "present" : "ABSENT"}`);
+          finish(() => resolve(cache));
+        } catch (e) {
+          finish(() => reject(e));
+        }
+      })();
+    });
+  });
+  const browserOpened = opts.openBrowser === false ? false : openBrowser(authUrl.toString());
+  log(`sign-in started; redirect ${redirectUri}; browser ${browserOpened ? "opened" : "NOT opened"}`);
+  if (!browserOpened) log(`open this URL manually: ${authUrl.toString()}`);
+  const entry = { auth_url: authUrl.toString(), redirect_uri: redirectUri, browser_opened: browserOpened, started_at: startedAt, deadline, promise };
+  promise.then(
+    (cache) => {
+      entry.outcome = { ok: true, cache };
+    },
+    (e) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      const { code, hint } = explainAadError(msg);
+      entry.outcome = { ok: false, error: msg, hint, aad_code: code };
+    }
+  );
+  pending = entry;
+  return entry;
+}
+async function waitForLogin(p, ms) {
+  if (p.outcome) return true;
+  await Promise.race([p.promise.catch(() => void 0), new Promise((r) => setTimeout(r, ms))]);
+  return Boolean(p.outcome);
+}
+function consumeLogin() {
+  if (pending?.outcome) pending = null;
+}
+function authStatus(cfg = loadConfig()) {
+  const base = {
+    cache_path: TOKEN_CACHE_PATH,
+    issuer: cfg.oidc.issuer.value,
+    client_id_hint: idHint(cfg.oidc.clientId.value),
+    redirect_uri: cfg.oidc.redirectUri.value
+  };
+  const p = currentLogin();
+  const pendingInfo = p && !p.outcome ? { seconds_left: Math.max(0, Math.round((p.deadline - Date.now()) / 1e3)), browser_opened: p.browser_opened } : void 0;
+  if (cfg.token.value) {
+    return {
+      ...base,
+      signed_in: true,
+      source: cfg.token.source === "session" ? "session" : "env",
+      note: "Using a manually supplied token (override). forge_auth_login is not consulted while it is set; clear it with forge_config_clear(keys: ['token']).",
+      pending_login: pendingInfo
+    };
+  }
+  const cache = readCache(cfg);
+  if (!cache) {
+    return {
+      ...base,
+      signed_in: false,
+      source: "none",
+      pending_login: pendingInfo,
+      note: existsSync2(TOKEN_CACHE_PATH) ? "A saved sign-in exists but is for a different issuer/client than the current OIDC settings; sign in again." : void 0
+    };
+  }
+  const expiresIn = cache.expires_at - nowS();
+  const fresh = isFresh(cache);
+  return {
+    ...base,
+    signed_in: fresh || Boolean(cache.refresh_token),
+    source: "cache",
+    account: cache.account ? { name: cache.account.name, email: cache.account.email } : void 0,
+    access_token_expires_in_s: Math.max(0, expiresIn),
+    access_token_expired: !fresh,
+    has_refresh_token: Boolean(cache.refresh_token),
+    scopes: (cache.scope ?? cfg.oidc.scopes.value).split(/\s+/).filter(Boolean),
+    pending_login: pendingInfo,
+    note: !fresh && cache.refresh_token ? "Access token expired; it will be refreshed silently on the next call." : !fresh ? "Access token expired and no refresh token \u2014 sign in again." : void 0
+  };
+}
+function logout() {
+  const removed = clearCache();
+  pending = null;
+  return { removed_cache: removed };
+}
 
 // src/index.ts
 var execFileP = promisify(execFile);
 var SPEC_PATHS = [
+  "/api/documentation/json",
+  "/api/v3/documentation/json",
+  "/documentation/json",
   "/api/v3/openapi.json",
   "/api/openapi.json",
   "/openapi.json",
   "/swagger.json",
   "/api-docs",
-  "/api/v3/docs-json",
   "/docs-json"
 ];
-var HEALTH_PATHS = ["/health", "/healthz", "/api/health", "/api/v3/health", "/"];
+var HEALTH_PATHS = ["/health", "/api/health", "/healthz", "/api/v3/health", "/"];
+var ME_PATH = "/api/v3/me/";
 var SETUP_HINT = "Call forge_config_collect to prompt the developer for it directly, one input at a time \u2014 do not ask for values in conversation, and never tell them to set an environment variable or edit a file. /skill-forge-setup walks through every setting.";
-function redact(s, token) {
-  return token ? s.split(token).join("<redacted-token>") : s;
+var LOGIN_HINT = "Call forge_auth_login: it opens the Microsoft sign-in page in the developer's browser and saves the result, so this is a one-time step (later sessions refresh silently). Never ask them to paste a token.";
+function redact(s) {
+  let out = s;
+  for (const secret of redactionSecrets()) out = out.split(secret).join("<redacted-token>");
+  return out;
 }
-function text(payload, token) {
+function text(payload) {
   const body = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
-  const t = token ?? loadConfig().token.value;
-  return { content: [{ type: "text", text: redact(body, t) }] };
+  return { content: [{ type: "text", text: redact(body) }] };
 }
-function assertSamePath(path) {
+function assertRelativePath(path) {
   if (/^[a-z]+:\/\//i.test(path)) {
     throw new Error("Absolute URLs are not allowed; pass a path relative to the configured backend URL.");
   }
   return path.startsWith("/") ? path : `/${path}`;
 }
 async function doFetch(baseUrl, path, init = {}) {
-  const url = `${baseUrl}${assertSamePath(path)}`;
+  const url = `${baseUrl}${assertRelativePath(path)}`;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), init.timeoutMs ?? 15e3);
   const started = Date.now();
@@ -21655,6 +22187,11 @@ function tryJson(s) {
     return void 0;
   }
 }
+function pick2(h, keys) {
+  const out = {};
+  for (const k of keys) if (h[k]) out[k] = h[k];
+  return out;
+}
 async function isGitRepo(path) {
   try {
     await execFileP("git", ["-C", path, "rev-parse", "--is-inside-work-tree"], { timeout: 1e4 });
@@ -21663,63 +22200,86 @@ async function isGitRepo(path) {
     return false;
   }
 }
+async function detectBackends(exclude) {
+  const candidates = API_URL_CANDIDATES.filter((u) => u !== exclude);
+  const results = await Promise.all(
+    candidates.map(async (u) => {
+      try {
+        const r = await doFetch(u, "/health", { method: "GET", timeoutMs: 1500 });
+        return r.status < 500 ? u : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return results.filter((u) => Boolean(u));
+}
+async function probeReachable(baseUrl) {
+  for (const p of HEALTH_PATHS) {
+    try {
+      const r = await doFetch(baseUrl, p, { method: "GET", timeoutMs: 5e3 });
+      return { path: p, status: r.status, body: tryJson(r.body) ?? r.body.slice(0, 300) };
+    } catch {
+    }
+  }
+  return null;
+}
 async function configReport() {
   const cfg = loadConfig();
+  const auth = authStatus(cfg);
   const missing = [];
-  if (!cfg.token.value) missing.push("token");
+  if (!auth.signed_in) missing.push("sign_in");
   if (!cfg.backendPath.value) missing.push("backend_path");
   const backend = { source: cfg.backendPath.source };
   if (cfg.backendPath.value) {
     backend.path = cfg.backendPath.value;
     const ok = await isGitRepo(cfg.backendPath.value);
     backend.is_git_repo = ok;
-    if (!ok) {
-      backend.problem = 'Stored path is not a git checkout. Prompt for the right one with forge_config_collect(keys: ["backend_path"], force: true).';
-    }
+    if (!ok) backend.problem = 'Stored path is not a git checkout. Prompt for the right one with forge_config_collect(keys: ["backend_path"], force: true).';
   }
   const notes = [];
-  if (missing.includes("token")) {
-    notes.push(
-      'No token this session: forge_request and authenticated probes are unavailable. The token is never stored on disk, so it is collected once per session \u2014 call forge_config_collect(keys: ["token"]).'
-    );
-  }
+  if (!auth.signed_in) notes.push(`Not signed in: forge_request and authenticated probes are unavailable. ${LOGIN_HINT}`);
   if (missing.includes("backend_path")) notes.push("No backend repo path stored: forge_git_state and codebase-mine are unavailable.");
   if (cfg.apiBaseUrl.source === "default") {
-    notes.push(`No backend URL stored; using the default ${DEFAULT_API_BASE_URL}. Confirm it with the user if a probe fails.`);
+    notes.push(`No backend URL stored; using the default ${DEFAULT_API_BASE_URL}. forge_health probes the usual local ports and remembers the one that answers.`);
   }
+  const oidcSource = [cfg.oidc.issuer, cfg.oidc.clientId, cfg.oidc.scopes, cfg.oidc.redirectUri].some((r) => r.source !== "default") ? "overridden" : "built-in defaults";
   return {
     config_path: CONFIG_PATH,
+    token_cache_path: TOKEN_CACHE_PATH,
     api_base_url: { value: cfg.apiBaseUrl.value, source: cfg.apiBaseUrl.source },
-    token: {
-      configured: Boolean(cfg.token.value),
-      hint: tokenHint(cfg.token.value) || void 0,
-      source: cfg.token.source,
-      persisted: false,
-      scope: "session \u2014 held in the server process only, never written to disk, gone when the session ends"
-    },
     backend_path: backend,
+    oidc: {
+      issuer: cfg.oidc.issuer.value,
+      client_id: idHint(cfg.oidc.clientId.value),
+      scopes: cfg.oidc.scopes.value.split(/\s+/),
+      redirect_uri: cfg.oidc.redirectUri.value,
+      source: oidcSource
+    },
+    auth,
     missing,
     notes,
-    next_action: missing.length ? SETUP_HINT : void 0
+    next_action: missing.includes("sign_in") ? LOGIN_HINT : missing.length ? SETUP_HINT : void 0
   };
 }
-var server = new McpServer({ name: "pivotly-skill-forge", version: "0.2.0" });
+var server = new McpServer({ name: "pivotly-skill-forge", version: "0.3.0" });
 var PROMPTS = {
   api_base_url: {
     message: "Which URL is your Pivotly backend running on?",
     title: "Backend URL",
     description: `Include the scheme and port, e.g. ${DEFAULT_API_BASE_URL}. Must be a local/dev host \u2014 never production.`,
-    withDefault: () => DEFAULT_API_BASE_URL
-  },
-  token: {
-    message: "Paste your Pivotly dev bearer token.",
-    title: "Dev bearer token",
-    description: "Held in the skill-forge server's memory for this session only \u2014 never written to disk and never echoed back. This field is not masked, so nobody should use a production credential here."
+    // Pre-fill with whatever is actually answering right now, so accepting is one keystroke.
+    withDefault: async () => (await detectBackends())[0] ?? DEFAULT_API_BASE_URL
   },
   backend_path: {
     message: "Where is your Pivotly backend git checkout?",
     title: "Backend checkout path",
-    description: "Absolute path to the directory containing .git, e.g. C:\\Users\\you\\dev\\pivotly-core. ~, /c/\u2026 and /mnt/c/\u2026 are accepted."
+    description: "Absolute path to the directory containing .git, e.g. C:\\Users\\you\\dev\\Portal_Independent_Backend. ~, /c/\u2026 and /mnt/c/\u2026 are accepted."
+  },
+  token: {
+    message: "Paste a Pivotly bearer token (manual fallback \u2014 forge_auth_login is the normal way to sign in).",
+    title: "Bearer token (manual override)",
+    description: "Held in the skill-forge server's memory for this session only \u2014 never written to disk and never echoed back. This field is not masked. Use this only when a browser sign-in is impossible on this machine."
   }
 };
 function clientSupportsElicitation() {
@@ -21735,10 +22295,7 @@ function clientSupportsElicitation() {
 function observedClientCapabilities() {
   try {
     const caps = server.server.getClientCapabilities();
-    return {
-      advertised: caps ? Object.keys(caps) : [],
-      elicitation: caps?.elicitation ?? null
-    };
+    return { advertised: caps ? Object.keys(caps) : [], elicitation: caps?.elicitation ?? null };
   } catch (e) {
     return { error: String(e) };
   }
@@ -21750,9 +22307,7 @@ function validateFor(key, value, allowRemote = false) {
 }
 var PROMPT_TIMEOUT_MS = 6e5;
 async function promptFor(key, retryError) {
-  if (!clientSupportsElicitation()) {
-    return { status: "unsupported", reason: "This host does not support MCP elicitation prompts." };
-  }
+  if (!clientSupportsElicitation()) return { status: "unsupported", reason: "This host does not support MCP elicitation prompts." };
   const p = PROMPTS[key];
   const schema = {
     type: "string",
@@ -21760,7 +22315,7 @@ async function promptFor(key, retryError) {
     description: retryError ? `${retryError} \u2014 ${p.description}` : p.description,
     minLength: 1
   };
-  const def = p.withDefault?.();
+  const def = await p.withDefault?.();
   if (def) schema.default = def;
   try {
     const res = await server.server.elicitInput(
@@ -21780,53 +22335,67 @@ ${p.message}` : p.message,
   } catch (e) {
     const code = e?.code;
     const msg = e instanceof Error ? e.message : String(e);
-    if (code === -32601 || /does not support/i.test(msg)) {
-      return { status: "unsupported", reason: msg };
-    }
+    if (code === -32601 || /does not support/i.test(msg)) return { status: "unsupported", reason: msg };
     return { status: "invalid", reason: msg };
   }
 }
 server.tool(
   "forge_config_status",
-  "Report which skill-forge settings this developer has stored (backend URL, dev token, backend repo path), where each value came from, and what is still missing. Call it at the start of a forge workflow and whenever another tool reports a missing setting. Never returns the token itself.",
+  "Report skill-forge's state for this developer: backend URL, backend repo path, the OIDC settings in use, and who is signed in (account, token expiry, whether a refresh token is saved). Call it at the start of a forge workflow and whenever another tool reports a missing setting. Never returns token material.",
   {},
   async () => text(await configReport())
 );
 server.tool(
   "forge_config_set",
-  "Store one or more skill-forge settings for this developer, collected by asking them in conversation \u2014 no environment variables, no file editing. Each value is validated before it is written (the URL is parsed and must be a local/dev host; backend_path must exist and be a git checkout) and takes effect immediately with no restart. The token is held in memory for this session only and is never written to disk or echoed back. Prefer forge_config_collect, which prompts the developer directly; use this tool when you already have a value in hand.",
+  "Store one or more skill-forge settings for this developer \u2014 no environment variables, no file editing. Each value is validated before it is written (the URL must be a local/dev host; backend_path must exist and be a git checkout) and takes effect immediately with no restart. The oidc_* keys override the built-in Pivotly Entra ID registration (another tenant, a write scope); changing them invalidates the saved sign-in. `token` is a manual override held in memory for this session only \u2014 prefer forge_auth_login. Prefer forge_config_collect for URL/path, which prompts the developer directly; use this tool when you already have a value in hand.",
   {
-    api_base_url: external_exports.string().optional().describe("Base URL of the developer's running Pivotly backend, e.g. http://localhost:3000"),
-    token: external_exports.string().optional().describe("Dev bearer token for that backend. Kept in the server process for this session only \u2014 never written to disk \u2014 and redacted from every tool output."),
+    api_base_url: external_exports.string().optional().describe("Base URL of the developer's running Pivotly backend, e.g. http://localhost:8081"),
     backend_path: external_exports.string().optional().describe("Absolute path to the local Pivotly backend git checkout"),
+    oidc_issuer: external_exports.string().optional().describe("OIDC issuer (Entra: https://login.microsoftonline.com/<tenant>/v2.0). Rarely needed; defaults to Pivotly's tenant."),
+    oidc_client_id: external_exports.string().optional().describe("Public client (app registration) id. Rarely needed; defaults to Pivotly's plugin client."),
+    oidc_scopes: external_exports.string().optional().describe("Space-separated scopes. Add the API write scope here when the developer needs write access, then forge_auth_login(force: true)."),
+    oidc_redirect_uri: external_exports.string().optional().describe("Loopback redirect registered on the app, e.g. http://localhost:8642/callback"),
+    token: external_exports.string().optional().describe("Manual bearer token override. Kept in the server process for this session only \u2014 never written to disk \u2014 and redacted from every tool output. Only for hosts where a browser sign-in is impossible."),
     allow_remote: external_exports.boolean().default(false).describe("Set only after the user explicitly confirms that a non-local api_base_url is a dev environment. Required for any host that is not localhost or a private address.")
   },
-  async ({ api_base_url, token, backend_path, allow_remote }) => {
-    if (api_base_url === void 0 && token === void 0 && backend_path === void 0) {
-      return text({
-        error: "Nothing to set. Pass at least one of api_base_url, token, backend_path.",
-        config: await configReport()
-      });
+  async ({ api_base_url, backend_path, oidc_issuer, oidc_client_id, oidc_scopes, oidc_redirect_uri, token, allow_remote }) => {
+    const inputs = { api_base_url, backend_path, oidc_issuer, oidc_client_id, oidc_scopes, oidc_redirect_uri, token };
+    if (Object.values(inputs).every((v) => v === void 0)) {
+      return text({ error: "Nothing to set. Pass at least one setting.", config: await configReport() });
     }
     const stored = readStored();
     const applied = [];
     const warnings = [];
     const rejected = [];
-    if (api_base_url !== void 0) {
-      const v = validateApiBaseUrl(api_base_url, allow_remote);
+    let oidcChanged = false;
+    const apply = (key, v, label = key) => {
       if (!v.ok) rejected.push(v.error);
       else {
-        stored.api_base_url = v.value;
-        applied.push(`api_base_url = ${v.value}`);
+        stored[key] = v.value;
+        applied.push(`${label} = ${v.value}`);
         if (v.warning) warnings.push(v.warning);
       }
+    };
+    if (api_base_url !== void 0) apply("api_base_url", validateApiBaseUrl(api_base_url, allow_remote));
+    if (oidc_issuer !== void 0) {
+      apply("oidc_issuer", validateOidcIssuer(oidc_issuer));
+      oidcChanged = true;
     }
+    if (oidc_client_id !== void 0) {
+      apply("oidc_client_id", validateOidcClientId(oidc_client_id));
+      oidcChanged = true;
+    }
+    if (oidc_scopes !== void 0) {
+      apply("oidc_scopes", validateOidcScopes(oidc_scopes));
+      oidcChanged = true;
+    }
+    if (oidc_redirect_uri !== void 0) apply("oidc_redirect_uri", validateOidcRedirectUri(oidc_redirect_uri));
     if (token !== void 0) {
       const v = validateToken(token);
       if (!v.ok) rejected.push(v.error);
       else {
         setSessionToken(v.value);
-        applied.push(`token = ${tokenHint(v.value)} (this session only, not written to disk)`);
+        applied.push(`token = ${tokenHint(v.value)} (manual override, this session only, not written to disk)`);
       }
     }
     if (backend_path !== void 0) {
@@ -21839,15 +22408,17 @@ server.tool(
         applied.push(`backend_path = ${v.value}`);
       }
     }
-    if (applied.length) {
+    const persisted = applied.some((a) => !a.startsWith("token ="));
+    if (persisted) {
       try {
         writeStored(stored);
       } catch (e) {
         return text({ error: `Could not write ${CONFIG_PATH}: ${String(e)}`, applied: [], rejected });
       }
     }
+    if (oidcChanged) warnings.push("OIDC settings changed: the saved sign-in (if any) no longer matches and will be ignored. Run forge_auth_login(force: true) to sign in against the new settings.");
     return text({
-      saved_to: applied.length ? CONFIG_PATH : void 0,
+      saved_to: persisted ? CONFIG_PATH : void 0,
       applied,
       rejected: rejected.length ? rejected : void 0,
       warnings: warnings.length ? warnings : void 0,
@@ -21858,28 +22429,26 @@ server.tool(
 );
 server.tool(
   "forge_config_collect",
-  "Collect skill-forge settings by prompting the developer directly, one input at a time, in the host's own UI. This is the preferred way to set anything up: call it instead of asking the user for values in conversation. By default it prompts only for what is missing \u2014 the backend URL, the dev token (session-only), and the backend checkout path. Each answer is validated as it arrives and a rejected value is re-prompted once. Returns what was collected; never returns the token.",
+  "Collect skill-forge settings by prompting the developer directly, one input at a time, in the host's own UI. This is the preferred way to set up the backend URL and the backend checkout path: call it instead of asking the user for values in conversation. By default it prompts only for what is missing; the URL prompt is pre-filled with whichever local port is actually answering. Each answer is validated as it arrives and a rejected value is re-prompted once. Sign-in is NOT collected here \u2014 that is forge_auth_login. The `token` key exists only as a manual fallback for hosts without a browser.",
   {
-    keys: external_exports.array(external_exports.enum(["api_base_url", "token", "backend_path"])).optional().describe("Which settings to prompt for, in this order. Omit to prompt for everything not already available."),
-    force: external_exports.boolean().default(false).describe("Prompt even for settings that already have a value \u2014 use when the developer wants to change one (rotated token, different port, moved checkout)."),
-    allow_remote: external_exports.boolean().default(false).describe(
-      "Set only after the developer explicitly confirms that a non-local backend URL is a dev environment. Without it a non-local URL is refused, and refused again on every retry. Never pass it on your own initiative."
-    )
+    keys: external_exports.array(external_exports.enum(["api_base_url", "backend_path", "token"])).optional().describe("Which settings to prompt for, in this order. Omit to prompt for the backend URL and checkout path if they are not already available."),
+    force: external_exports.boolean().default(false).describe("Prompt even for settings that already have a value \u2014 use when the developer wants to change one (different port, moved checkout)."),
+    allow_remote: external_exports.boolean().default(false).describe("Set only after the developer explicitly confirms that a non-local backend URL is a dev environment. Never pass it on your own initiative.")
   },
   async ({ keys, force, allow_remote }) => {
     const cfg = loadConfig();
     const have = {
       // A default-sourced URL is not something the developer chose, so it still counts as missing.
-      api_base_url: cfg.apiBaseUrl.source !== "default" && cfg.apiBaseUrl.source !== "unset",
-      token: Boolean(cfg.token.value),
-      backend_path: Boolean(cfg.backendPath.value)
+      api_base_url: cfg.apiBaseUrl.source === "config" || cfg.apiBaseUrl.source === "env",
+      backend_path: Boolean(cfg.backendPath.value),
+      token: Boolean(cfg.token.value)
     };
-    const order = keys?.length ? keys : ["api_base_url", "token", "backend_path"];
+    const order = keys?.length ? keys : ["api_base_url", "backend_path"];
     const wanted = force ? order : order.filter((k) => !have[k]);
     if (!wanted.length) {
       return text({
         prompted: [],
-        note: "Everything these settings cover is already available this session. Pass force: true to change one.",
+        note: "Everything these settings cover is already available. Pass force: true to change one. Sign-in is separate: forge_auth_login.",
         config: await configReport()
       });
     }
@@ -21889,14 +22458,12 @@ server.tool(
       return text({
         error: urlOnly ? "This host supports only URL-mode elicitation, not the form prompts this tool uses (Claude Desktop/Cowork does this; Claude Code supports form prompts)." : "This host does not support input prompts (MCP elicitation).",
         needed: wanted,
-        // Report what the host actually advertised, so "no prompts at all" can be told apart
-        // from "prompts, but not the kind we need" without guessing.
         client_capabilities: caps,
-        next_action: "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. Say once, plainly, that a token typed into chat stays in that transcript, and that running the same setup in Claude Code gets them a real input field instead. Do not tell them to set an environment variable or edit a file.",
+        next_action: "Fall back to asking the developer for each of these in conversation, one at a time, then store each with forge_config_set. Do not tell them to set an environment variable or edit a file. Sign-in still works everywhere via forge_auth_login.",
         config: await configReport()
       });
     }
-    const pending = {};
+    const pending2 = {};
     const collected = [];
     const rejected = [];
     const skipped = [];
@@ -21930,17 +22497,17 @@ server.tool(
       }
       if (key === "token") {
         setSessionToken(v.value);
-        collected.push(`token = ${tokenHint(v.value)} (this session only, not written to disk)`);
+        collected.push(`token = ${tokenHint(v.value)} (manual override, this session only, not written to disk)`);
       } else if (key === "backend_path") {
         if (!await isGitRepo(v.value)) {
           rejected.push(`${v.value} exists but is not a git checkout \u2014 ask for the directory containing .git.`);
           continue;
         }
-        pending.backend_path = v.value;
+        pending2.backend_path = v.value;
         persistNeeded = true;
         collected.push(`backend_path = ${v.value}`);
       } else {
-        pending.api_base_url = v.value;
+        pending2.api_base_url = v.value;
         persistNeeded = true;
         collected.push(`api_base_url = ${v.value}`);
         if (v.warning) rejected.push(v.warning);
@@ -21948,7 +22515,7 @@ server.tool(
     }
     if (persistNeeded) {
       try {
-        writeStored({ ...readStored(), ...pending });
+        writeStored({ ...readStored(), ...pending2 });
       } catch (e) {
         return text({ error: `Could not write ${CONFIG_PATH}: ${String(e)}`, collected, rejected });
       }
@@ -21960,22 +22527,24 @@ server.tool(
       stopped: stoppedAt,
       saved_to: persistNeeded ? CONFIG_PATH : void 0,
       config: await configReport(),
-      next_action: rejected.length ? "Tell the developer in plain language what was rejected, then call forge_config_collect again for that key with force: true." : stoppedAt ? "Ask the developer whether they want to continue; re-run forge_config_collect when they do." : "Verify with forge_health (URL/token) and forge_git_state (checkout path)."
+      next_action: rejected.length ? "Tell the developer in plain language what was rejected, then call forge_config_collect again for that key with force: true." : stoppedAt ? "Ask the developer whether they want to continue; re-run forge_config_collect when they do." : "Verify with forge_health (URL + sign-in) and forge_git_state (checkout path)."
     });
   }
 );
 server.tool(
   "forge_config_clear",
-  "Forget skill-forge settings \u2014 one key, or all of them. Clearing the token just drops it from session memory (it was never on disk). Use it when the developer rotates their token, switches backend checkouts, or wants the machine left clean. Only touches this plugin's own config file; never the backend or the repo.",
+  "Forget skill-forge settings \u2014 one key, or all of them. `token` clears the saved sign-in (token cache on disk) and any manual override in memory; the oidc_* keys revert to the built-in Pivotly defaults. Use it when the developer switches accounts, switches backend checkouts, or wants the machine left clean. Only touches this plugin's own files; never the backend or the repo.",
   {
-    keys: external_exports.array(external_exports.enum(["api_base_url", "token", "backend_path"])).optional().describe("Which settings to forget. Omit to clear all of them \u2014 confirm with the user first.")
+    keys: external_exports.array(external_exports.enum(["api_base_url", "backend_path", "oidc_issuer", "oidc_client_id", "oidc_scopes", "oidc_redirect_uri", "token"])).optional().describe("Which settings to forget. Omit to clear all of them including the sign-in \u2014 confirm with the user first.")
   },
   async ({ keys }) => {
     const target = keys?.length ? keys : CONFIG_KEYS;
     const stored = readStored();
     const removed = [];
     if (target.includes("token")) {
-      if (getSessionToken()) removed.push("token");
+      const { removed_cache } = logout();
+      if (removed_cache) removed.push("token (saved sign-in)");
+      if (loadConfig().token.source === "session") removed.push("token (manual override)");
       clearSessionToken();
     }
     for (const k of target) {
@@ -21990,80 +22559,221 @@ server.tool(
     }
     return text({
       cleared: removed,
-      not_stored: target.filter((k) => !removed.includes(k)),
-      note: removed.includes("token") ? "The token was only ever in memory; nothing token-shaped had to be erased from disk." : void 0,
+      not_stored: target.filter((k) => !removed.some((r) => r.startsWith(k))),
       config: await configReport()
     });
   }
 );
 server.tool(
-  "forge_health",
-  "Check whether the developer's Pivotly backend is reachable, which health endpoint answers, whether the stored token is accepted, and whether an OpenAPI/Swagger document is served. Call this first in any api-verify workflow; when a setting is missing it names the one to collect.",
+  "forge_auth_login",
+  "Sign the developer in to Pivotly. Opens the Microsoft Entra ID sign-in page in their default browser (Authorization Code + PKCE, loopback redirect), waits for them to finish, and saves the result to the token cache \u2014 including a refresh token, so this is normally a ONE-TIME step per machine; later sessions refresh silently. Tell the user in one line that a browser window has opened before or right after calling this. If the developer is already signed in, it just reports who. Use force: true to switch accounts or after changing oidc_scopes (e.g. adding a write scope). If it returns status 'waiting_for_sign_in', relay the auth_url in case no window appeared, then call forge_auth_login again to pick up the result.",
+  {
+    force: external_exports.boolean().default(false).describe("Start a fresh browser sign-in even if a valid sign-in is saved (switch account, pick up new scopes)."),
+    open_browser: external_exports.boolean().default(true).describe("Set false on a machine without a browser: the tool then returns the auth_url for the developer to open elsewhere and waits for the redirect on this machine's loopback."),
+    wait_seconds: external_exports.number().int().min(5).max(240).default(120).describe("How long this call waits for the sign-in to complete before returning 'waiting_for_sign_in'. The sign-in itself stays open for 5 minutes.")
+  },
+  async ({ force, open_browser, wait_seconds }) => {
+    const cfg = loadConfig();
+    if (cfg.token.value) {
+      return text({
+        signed_in: true,
+        source: cfg.token.source,
+        note: "A manually supplied token override is active, so browser sign-in is not used. Clear it with forge_config_clear(keys: ['token']) to switch to the saved sign-in.",
+        auth: authStatus(cfg)
+      });
+    }
+    if (!force && !currentLogin()) {
+      const acq = await acquireToken(cfg);
+      if (acq.ok) {
+        return text({
+          signed_in: true,
+          already: true,
+          account: acq.account ? { name: acq.account.name, email: acq.account.email } : void 0,
+          access_token_expires_in_s: acq.expires_in_s,
+          source: acq.source,
+          note: "No browser needed \u2014 the saved sign-in is valid. Pass force: true to sign in as a different account or with new scopes.",
+          next_action: "Call forge_health to confirm the backend accepts it."
+        });
+      }
+    }
+    let pendingLogin;
+    try {
+      const existing = currentLogin();
+      if (existing) pendingLogin = existing;
+      else {
+        pendingLogin = await startLogin(cfg, { openBrowser: open_browser, selectAccount: force });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return text({
+        error: `Could not start the sign-in: ${msg}`,
+        oidc: { issuer: cfg.oidc.issuer.value, client_id: idHint(cfg.oidc.clientId.value), redirect_uri: cfg.oidc.redirectUri.value },
+        next_action: "Relay the error. If it mentions the port being in use, another sign-in may still be waiting \u2014 ask the developer to finish it or wait a minute. If discovery failed, check network/VPN."
+      });
+    }
+    const settled = await waitForLogin(pendingLogin, Math.min(wait_seconds * 1e3, LOGIN_TIMEOUT_MS));
+    if (!settled) {
+      return text({
+        status: "waiting_for_sign_in",
+        browser_opened: pendingLogin.browser_opened,
+        auth_url: pendingLogin.auth_url,
+        redirect_uri: pendingLogin.redirect_uri,
+        seconds_left: Math.max(0, Math.round((pendingLogin.deadline - Date.now()) / 1e3)),
+        next_action: "Tell the developer to complete the Microsoft sign-in in the browser window" + (pendingLogin.browser_opened ? "" : " (none was opened automatically \u2014 give them the auth_url to open)") + ", then call forge_auth_login again to pick up the result."
+      });
+    }
+    const outcome = pendingLogin.outcome;
+    consumeLogin();
+    if (!outcome.ok) {
+      return text({
+        error: outcome.error,
+        aad_error_code: outcome.aad_code,
+        hint: outcome.hint,
+        redirect_uri_used: pendingLogin.redirect_uri,
+        next_action: outcome.hint ? "Relay the hint to the developer in plain language; it names the fix. Then call forge_auth_login again." : "Relay the error and offer to try again with forge_auth_login."
+      });
+    }
+    const c = outcome.cache;
+    return text({
+      signed_in: true,
+      account: c.account ? { name: c.account.name, email: c.account.email } : void 0,
+      access_token_expires_in_s: Math.max(0, c.expires_at - Math.floor(Date.now() / 1e3)),
+      refresh_token_saved: Boolean(c.refresh_token),
+      scopes: (c.scope ?? cfg.oidc.scopes.value).split(/\s+/).filter(Boolean),
+      saved_to: TOKEN_CACHE_PATH,
+      note: c.refresh_token ? "Saved. Future sessions will refresh silently; no sign-in needed until the refresh token is revoked or idle for ~90 days." : "No refresh token was issued (scopes lack offline_access), so sign-in will be needed again in about an hour.",
+      next_action: "Call forge_health to confirm the backend accepts the sign-in."
+    });
+  }
+);
+server.tool(
+  "forge_auth_logout",
+  "Discard the saved Pivotly sign-in (deletes the token cache and any in-memory override) so the next authenticated call requires forge_auth_login. Use it when the developer leaves the machine, wants to switch accounts, or a token may have been exposed. Does not sign them out of the browser's Microsoft session.",
   {},
   async () => {
-    const cfg = loadConfig();
-    const BASE_URL = cfg.apiBaseUrl.value;
-    const TOKEN = cfg.token.value;
-    const report = {
-      base_url: BASE_URL,
-      base_url_source: cfg.apiBaseUrl.source,
-      token_configured: Boolean(TOKEN)
-    };
-    let reachable = false;
-    for (const p of HEALTH_PATHS) {
-      try {
-        const r = await doFetch(BASE_URL, p, { method: "GET", timeoutMs: 5e3 });
-        reachable = true;
-        report.health = { path: p, status: r.status, body: tryJson(r.body) ?? r.body.slice(0, 300) };
-        break;
-      } catch {
+    const { removed_cache } = logout();
+    const hadOverride = loadConfig().token.source === "session";
+    clearSessionToken();
+    return text({
+      signed_out: true,
+      removed_cache,
+      removed_override: hadOverride,
+      note: "The browser still holds a Microsoft session, so the next forge_auth_login may complete without a password prompt. That is the IdP's session, not this plugin's.",
+      auth: authStatus()
+    });
+  }
+);
+function meta(body) {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const b = body;
+    return b.meta ?? b.error?.meta;
+  }
+  return void 0;
+}
+async function probeMe(baseUrl, token) {
+  try {
+    const r = await doFetch(baseUrl, ME_PATH, { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, timeoutMs: 8e3 });
+    const body = tryJson(r.body);
+    if (r.status >= 200 && r.status < 300) {
+      const data = body && typeof body === "object" && !Array.isArray(body) ? body.data ?? body : void 0;
+      const user = {};
+      for (const k of ["id", "email", "display_name", "displayName", "name", "role", "roles"]) if (data && data[k] !== void 0) user[k] = data[k];
+      return { path: ME_PATH, status: r.status, accepted: true, outcome: "accepted", user };
+    }
+    const m = meta(body);
+    const code = String(m?.code ?? "");
+    const message = body && typeof body === "object" ? String(body.message ?? "") : r.body.slice(0, 200);
+    if (r.status === 401 && (code === "USER_NOT_IN_IAM" || /not.*provision|USER_NOT_IN_IAM/i.test(`${code} ${message}`))) {
+      return { path: ME_PATH, status: r.status, accepted: true, outcome: "authenticated_not_provisioned", detail: message || code };
+    }
+    if (r.status === 401) return { path: ME_PATH, status: r.status, accepted: false, outcome: "rejected", detail: message || code };
+    if (r.status === 403) return { path: ME_PATH, status: r.status, accepted: true, outcome: "forbidden", detail: message || code };
+    return { path: ME_PATH, status: r.status, accepted: false, outcome: "error", detail: message || code };
+  } catch (e) {
+    return { path: ME_PATH, status: 0, accepted: false, outcome: "error", detail: String(e) };
+  }
+}
+server.tool(
+  "forge_health",
+  "Check whether the developer's Pivotly backend is reachable (auto-detecting the usual local ports when no URL is stored and remembering the one that answers), whether the saved sign-in is accepted by it (via GET /api/v3/me/, distinguishing 'token rejected' from 'signed in but not provisioned in IAM'), and whether an OpenAPI document is served. Call this first in any api-verify workflow; when something is missing it names the exact next tool to call.",
+  {},
+  async () => {
+    let cfg = loadConfig();
+    const report = { base_url: cfg.apiBaseUrl.value, base_url_source: cfg.apiBaseUrl.source };
+    let health = await probeReachable(cfg.apiBaseUrl.value);
+    if (!health) {
+      const detected = await detectBackends(cfg.apiBaseUrl.value);
+      report.detected_candidates = detected;
+      if (detected.length === 1 && cfg.apiBaseUrl.source === "default") {
+        writeStored({ ...readStored(), api_base_url: detected[0] });
+        cfg = loadConfig();
+        report.auto_configured = `No backend URL was stored and only ${detected[0]} answered a health probe, so it was saved as api_base_url.`;
+        report.base_url = cfg.apiBaseUrl.value;
+        report.base_url_source = cfg.apiBaseUrl.source;
+        health = await probeReachable(cfg.apiBaseUrl.value);
       }
     }
-    report.reachable = reachable;
-    if (!reachable) {
-      report.next_action = cfg.apiBaseUrl.source === "default" ? `Nothing answered at the default ${BASE_URL}, and no backend URL is stored. Ask whether the backend is running, then prompt for the URL with forge_config_collect(keys: ["api_base_url"], force: true).` : `Backend not reachable at ${BASE_URL}. Ask the user to start the core backend, or prompt for a corrected URL with forge_config_collect(keys: ["api_base_url"], force: true).`;
-      return text(report, TOKEN);
+    report.reachable = Boolean(health);
+    if (health) report.health = health;
+    if (!health) {
+      const detected = report.detected_candidates ?? [];
+      report.next_action = detected.length ? `Nothing answered at ${cfg.apiBaseUrl.value}, but ${detected.join(" and ")} did. Confirm with the user which is their core backend, then forge_config_set(api_base_url: <that URL>).` : cfg.apiBaseUrl.source === "default" ? `Nothing answered at the default ${cfg.apiBaseUrl.value} or on ports ${API_URL_CANDIDATES.map((u) => new URL(u).port).join("/")}. Ask whether the backend is running; if it is on another port, prompt for the URL with forge_config_collect(keys: ["api_base_url"], force: true).` : `Backend not reachable at ${cfg.apiBaseUrl.value}. Ask the user to start the core backend, or prompt for a corrected URL with forge_config_collect(keys: ["api_base_url"], force: true).`;
+      report.auth = authStatus(cfg);
+      return text(report);
     }
-    if (TOKEN) {
-      try {
-        const r = await doFetch(BASE_URL, "/api/v3/data-views/publications", {
-          method: "GET",
-          headers: { Authorization: `Bearer ${TOKEN}`, Accept: "application/json" },
-          timeoutMs: 8e3
-        });
-        report.auth_probe = {
-          path: "/api/v3/data-views/publications",
-          status: r.status,
-          accepted: r.status !== 401 && r.status !== 403
-        };
-        if (r.status === 401 || r.status === 403) {
-          report.next_action = 'The token was rejected. Tell the user it was rejected (never quote it), then call forge_config_collect(keys: ["token"], force: true) to prompt for a current one \u2014 do not ask them to paste it into the chat.';
-        }
-      } catch (e) {
-        report.auth_probe = { error: String(e) };
-      }
+    let acq = await acquireToken(cfg);
+    if (!acq.ok) {
+      report.auth = { signed_in: false, reason: acq.reason, detail: acq.detail };
+      report.next_action = LOGIN_HINT;
     } else {
-      report.auth_probe = { skipped: "No token stored." };
-      report.next_action = `No dev token stored yet. ${SETUP_HINT}`;
+      let probe = await probeMe(cfg.apiBaseUrl.value, acq.token);
+      if (probe.outcome === "rejected" && acq.source === "cache") {
+        const again = await acquireToken(cfg, { forceRefresh: true });
+        if (again.ok) {
+          acq = again;
+          probe = await probeMe(cfg.apiBaseUrl.value, again.token);
+        }
+      }
+      const st = authStatus(cfg);
+      report.auth = {
+        signed_in: true,
+        source: acq.source,
+        account: st.account ?? (acq.account ? { name: acq.account.name, email: acq.account.email } : void 0),
+        access_token_expires_in_s: acq.expires_in_s,
+        has_refresh_token: st.has_refresh_token,
+        probe
+      };
+      if (probe.outcome === "rejected") {
+        report.next_action = "The backend rejected the sign-in (401). Usual causes: the backend validates a different tenant/audience than the plugin signed in to, or the token is for another environment. Tell the user, then call forge_auth_login(force: true) for a fresh sign-in; if it still fails, compare the backend's OIDC_ISSUER_URL/OIDC_AUDIENCE with forge_config_status \u2192 oidc.";
+      } else if (probe.outcome === "authenticated_not_provisioned") {
+        report.next_action = "The sign-in is valid but this account has no IAM user in this backend's database yet (USER_NOT_IN_IAM). Ask the developer to open the Pivotly Portal frontend against this backend once while signed in as this account \u2014 that provisions the user \u2014 or to run the provisioning route, then call forge_health again. Do not re-trigger sign-in.";
+      } else if (probe.outcome === "error") {
+        report.next_action = `The /me probe failed (${probe.detail}). The backend is up but may be mid-restart; retry, or probe another authenticated route with forge_request.`;
+      }
     }
+    const token = acq.ok ? acq.token : "";
     for (const p of SPEC_PATHS) {
       try {
-        const r = await doFetch(BASE_URL, p, { method: "GET", timeoutMs: 5e3 });
+        let r = await doFetch(cfg.apiBaseUrl.value, p, { method: "GET", timeoutMs: 5e3 });
+        if (r.status === 401 && token) r = await doFetch(cfg.apiBaseUrl.value, p, { method: "GET", headers: { Authorization: `Bearer ${token}` }, timeoutMs: 5e3 });
         const j = tryJson(r.body);
         if (r.status === 200 && j && (j.openapi || j.swagger || j.paths)) {
-          report.openapi = { path: p, version: j.openapi ?? j.swagger, path_count: Object.keys(j.paths ?? {}).length };
+          report.openapi = { path: p, version: j.openapi ?? j.swagger, title: j.info?.title, path_count: Object.keys(j.paths ?? {}).length };
           break;
         }
       } catch {
       }
     }
-    if (!report.openapi) report.openapi = { found: false, checked: SPEC_PATHS };
-    return text(report, TOKEN);
+    if (!report.openapi) {
+      const fromDisk = cfg.backendPath.value && existsSync3(join2(cfg.backendPath.value, "openapi.json"));
+      report.openapi = { found: false, checked: SPEC_PATHS, checkout_copy: fromDisk ? join2(cfg.backendPath.value, "openapi.json") : void 0 };
+    }
+    return text(report);
   }
 );
 server.tool(
   "forge_request",
-  "Send an authenticated HTTP request to the developer's Pivotly backend and return status, headers, timing, and parsed body. Use it to capture real response envelopes and error codes for a skill. Only relative paths are accepted; the stored bearer token is attached automatically and is redacted from every output. Mutating requests (POST core-data-write, attachment save/delete, cursor save) must be confirmed with the user before calling.",
+  "Send an authenticated HTTP request to the developer's Pivotly backend and return status, headers, timing, and parsed body. Use it to capture real response envelopes and error codes for a skill. Only relative paths are accepted; the signed-in user's bearer token is attached automatically (refreshed silently when expired) and redacted from every output. Mutating requests (POST core-data-write, attachment save/delete, publish) must be confirmed with the user before calling.",
   {
     method: external_exports.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
     path: external_exports.string().describe("Path relative to the configured backend URL, e.g. /api/v3/core-data-read"),
@@ -22074,102 +22784,116 @@ server.tool(
   },
   async ({ method, path, body, query, headers, timeout_ms }) => {
     const cfg = loadConfig();
-    const TOKEN = cfg.token.value;
-    if (!TOKEN) {
-      return text({
-        error: "No dev bearer token is stored, so authenticated requests cannot be made.",
-        next_action: `No token this session \u2014 it is never stored on disk. ${SETUP_HINT}`,
-        config_path: CONFIG_PATH
-      });
+    let acq = await acquireToken(cfg);
+    if (!acq.ok) {
+      return text({ error: "Not signed in, so authenticated requests cannot be made.", reason: acq.reason, detail: acq.detail, next_action: LOGIN_HINT });
     }
     const qs = query && Object.keys(query).length ? `?${new URLSearchParams(query).toString()}` : "";
-    const h = {
-      Accept: "application/json",
-      ...headers ?? {},
-      Authorization: `Bearer ${TOKEN}`
+    const send = async (token) => {
+      const h = { Accept: "application/json", ...headers ?? {}, Authorization: `Bearer ${token}` };
+      const init = { method, headers: h, timeoutMs: timeout_ms };
+      if (body !== void 0 && method !== "GET") {
+        h["Content-Type"] = h["Content-Type"] ?? "application/json";
+        init.body = typeof body === "string" ? body : JSON.stringify(body);
+      }
+      return doFetch(cfg.apiBaseUrl.value, `${assertRelativePath(path)}${qs}`, init);
     };
-    const init = { method, headers: h, timeoutMs: timeout_ms };
-    if (body !== void 0 && method !== "GET") {
-      h["Content-Type"] = h["Content-Type"] ?? "application/json";
-      init.body = typeof body === "string" ? body : JSON.stringify(body);
-    }
     try {
-      const r = await doFetch(cfg.apiBaseUrl.value, `${assertSamePath(path)}${qs}`, init);
+      let r = await send(acq.token);
+      let refreshed = false;
+      if (r.status === 401 && acq.source === "cache") {
+        const again = await acquireToken(cfg, { forceRefresh: true });
+        if (again.ok) {
+          acq = again;
+          r = await send(again.token);
+          refreshed = true;
+        }
+      }
       const parsed = tryJson(r.body);
-      return text(
-        {
-          request: { method, path: `${path}${qs}`, has_body: body !== void 0 },
-          status: r.status,
-          ms: r.ms,
-          headers: pick2(r.headers, ["content-type", "x-request-id", "x-tx-id", "location"]),
-          body: parsed ?? r.body.slice(0, 2e4),
-          body_truncated: parsed === void 0 && r.body.length > 2e4
-        },
-        TOKEN
-      );
+      const m = meta(parsed);
+      return text({
+        request: { method, path: `${path}${qs}`, has_body: body !== void 0 },
+        status: r.status,
+        ms: r.ms,
+        headers: pick2(r.headers, ["content-type", "x-request-id", "x-tx-id", "location"]),
+        body: parsed ?? r.body.slice(0, 2e4),
+        body_truncated: parsed === void 0 && r.body.length > 2e4,
+        token_refreshed: refreshed || void 0,
+        next_action: r.status === 401 ? String(m?.code) === "USER_NOT_IN_IAM" ? "Signed in, but this account is not provisioned in this backend's IAM. See forge_health for the fix; do not re-trigger sign-in." : "The backend rejected the sign-in. Call forge_health to diagnose, or forge_auth_login(force: true) for a fresh sign-in." : void 0
+      });
     } catch (e) {
-      return text({ error: String(e), request: { method, path }, base_url: cfg.apiBaseUrl.value }, TOKEN);
+      return text({ error: String(e), request: { method, path }, base_url: cfg.apiBaseUrl.value });
     }
   }
 );
+function inventoryOf(doc, filter) {
+  const inventory = [];
+  for (const [path, ops] of Object.entries(doc.paths ?? {})) {
+    if (filter && !path.includes(filter)) continue;
+    for (const [method, opRaw] of Object.entries(ops)) {
+      if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
+      const op = opRaw;
+      const params = op.parameters ?? [];
+      const reqBody = op.requestBody;
+      const content = reqBody?.content;
+      inventory.push({
+        method: method.toUpperCase(),
+        path,
+        summary: op.summary ?? op.description ?? null,
+        tags: op.tags ?? [],
+        parameters: params.map((q) => ({ name: q.name, in: q.in, required: Boolean(q.required), type: q.schema?.type ?? null })),
+        request_body: content?.["application/json"]?.schema ?? content?.["multipart/form-data"]?.schema ?? null,
+        responses: Object.fromEntries(Object.entries(op.responses ?? {}).map(([code, res]) => [code, res.description ?? ""]))
+      });
+    }
+  }
+  return inventory;
+}
 server.tool(
   "forge_openapi",
-  "Fetch the OpenAPI/Swagger document the backend serves (auto-discovers the path, or takes one) and return a normalized inventory: every path+method with summary, parameters, request-body schema ref, and response codes. Pass filter to narrow to paths containing a substring (e.g. 'core-data').",
+  "Fetch the OpenAPI document the backend serves (auto-discovers the path, or takes one; falls back to openapi.json in the backend checkout when nothing is served) and return a normalized inventory: every path+method with summary, parameters, request-body schema, and response codes. Pass filter to narrow to paths containing a substring (e.g. 'core-data', 'attachments', '/me'). The core backend has ~435 operations, so filter before reading.",
   {
     spec_path: external_exports.string().optional().describe("Override the spec path if auto-discovery fails"),
     filter: external_exports.string().optional().describe("Only include paths containing this substring"),
-    raw: external_exports.boolean().default(false).describe("Return the raw document instead of the normalized inventory")
+    raw: external_exports.boolean().default(false).describe("Return the raw document instead of the normalized inventory (large \u2014 combine with filter, or avoid)")
   },
   async ({ spec_path, filter, raw }) => {
     const cfg = loadConfig();
-    const TOKEN = cfg.token.value;
+    const acq = await acquireToken(cfg);
+    const token = acq.ok ? acq.token : "";
     const candidates = spec_path ? [spec_path] : SPEC_PATHS;
+    const finish = (doc, source) => {
+      if (raw) return text(doc);
+      const operations = inventoryOf(doc, filter);
+      return text({ ...source, version: doc.openapi ?? doc.swagger, title: doc.info?.title, api_version: doc.info?.version, count: operations.length, operations });
+    };
     for (const p of candidates) {
       try {
-        const r = await doFetch(cfg.apiBaseUrl.value, p, {
-          method: "GET",
-          headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
-          timeoutMs: 8e3
-        });
+        let r = await doFetch(cfg.apiBaseUrl.value, p, { method: "GET", timeoutMs: 8e3 });
+        if (r.status === 401 && token) r = await doFetch(cfg.apiBaseUrl.value, p, { method: "GET", headers: { Authorization: `Bearer ${token}` }, timeoutMs: 8e3 });
         const doc = tryJson(r.body);
         if (r.status !== 200 || !doc || !(doc.openapi || doc.swagger || doc.paths)) continue;
-        if (raw) return text(doc, TOKEN);
-        const inventory = [];
-        for (const [path, ops] of Object.entries(doc.paths ?? {})) {
-          if (filter && !path.includes(filter)) continue;
-          for (const [method, op] of Object.entries(ops)) {
-            if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
-            inventory.push({
-              method: method.toUpperCase(),
-              path,
-              summary: op.summary ?? op.description ?? null,
-              tags: op.tags ?? [],
-              parameters: (op.parameters ?? []).map((q) => ({
-                name: q.name,
-                in: q.in,
-                required: Boolean(q.required),
-                type: q.schema?.type ?? null
-              })),
-              request_body: op.requestBody?.content?.["application/json"]?.schema ?? null,
-              responses: Object.fromEntries(
-                Object.entries(op.responses ?? {}).map(([code, res]) => [code, res.description ?? ""])
-              )
-            });
-          }
-        }
-        return text({ spec_path: p, version: doc.openapi ?? doc.swagger, title: doc.info?.title, count: inventory.length, operations: inventory }, TOKEN);
+        return finish(doc, { source: "served", spec_path: p });
       } catch {
       }
     }
-    return text(
-      {
-        found: false,
-        checked: candidates,
-        base_url: cfg.apiBaseUrl.value,
-        next_action: "No served spec. Fall back to codebase-mine: derive the contract from route files and Zod schemas."
-      },
-      TOKEN
-    );
+    if (cfg.backendPath.value) {
+      const onDisk = join2(cfg.backendPath.value, "openapi.json");
+      if (existsSync3(onDisk)) {
+        try {
+          const doc = JSON.parse(readFileSync3(onDisk, "utf8"));
+          return finish(doc, { source: "checkout", file: onDisk, note: "The running backend served no spec; this is the checkout's committed copy. Confirm with forge_git_state that the checkout is current." });
+        } catch (e) {
+          return text({ found: false, checked: candidates, checkout_copy_error: String(e) });
+        }
+      }
+    }
+    return text({
+      found: false,
+      checked: candidates,
+      base_url: cfg.apiBaseUrl.value,
+      next_action: "No served spec and no openapi.json in the checkout. Fall back to codebase-mine: derive the contract from route files and Zod schemas."
+    });
   }
 );
 server.tool(
@@ -22180,11 +22904,7 @@ server.tool(
     const cfg = loadConfig();
     const BACKEND_PATH = cfg.backendPath.value;
     if (!BACKEND_PATH) {
-      return text({
-        error: "No backend repo path is stored.",
-        next_action: `No backend checkout path stored. ${SETUP_HINT}`,
-        config_path: CONFIG_PATH
-      });
+      return text({ error: "No backend repo path is stored.", next_action: `No backend checkout path stored. ${SETUP_HINT}`, config_path: CONFIG_PATH });
     }
     const git = async (...args) => (await execFileP("git", ["-C", BACKEND_PATH, ...args], { timeout: 2e4 })).stdout.trim();
     try {
@@ -22218,15 +22938,8 @@ server.tool(
     return text({ path: BACKEND_PATH, branch, dirty_files: dirty, behind_origin_main: behind, last_commit: last, ready: reminders.length === 0, reminders });
   }
 );
-function pick2(h, keys) {
-  const out = {};
-  for (const k of keys) if (h[k]) out[k] = h[k];
-  return out;
-}
 if (purgeLegacyStoredToken()) {
-  console.error(
-    "[skill-forge] Removed a dev token left in the config file by an earlier version \u2014 tokens are now session-only. You will be prompted for it once per session."
-  );
+  console.error("[skill-forge] Removed a pasted token left in config.json by an earlier version \u2014 sign-in is now via forge_auth_login (browser), cached in token.json.");
 }
 var transport = new StdioServerTransport();
 await server.connect(transport);

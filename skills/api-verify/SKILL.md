@@ -15,15 +15,15 @@ metadata:
 Prove the contract by calling it. The running API is the highest-authority source: when it disagrees with the docs or the code, the response wins for the skill, and the disagreement is reported to the user.
 
 ## Prerequisites
-- The user's backend running at their configured URL (default `http://localhost:3000`).
-- A stored dev bearer token. The MCP server attaches it and redacts it from all output.
-- If either is missing, `forge_health` says so — collect it with the **forge-setup** skill (ask, then `forge_config_set`). Never ask the user to set an environment variable.
+- The user's backend running locally. `forge_health` finds it on the usual ports (3000/8080/8081) and remembers the URL; nothing to type.
+- A Pivotly sign-in (`forge_auth_login`, one-time browser step; refreshes silently afterwards). The MCP server attaches the signed-in user's bearer token and redacts it from all output.
+- If either is missing, `forge_health` says so and names the tool to call — see the **forge-setup** skill. Never ask the user to paste a token or set an environment variable.
 - Dev database. Writes are permitted on this environment (user decision), but **every mutating call still requires per-call confirmation** — show method, endpoint, plain-language effect, and payload; wait for approval.
 
 ## Procedure
 
 ### 1. Health first
-Call `forge_health`. If not reachable → stop, tell the user to start the backend. If `auth_probe.accepted` is false → stop, token problem; say it was rejected, never quote it. Note `openapi.found`.
+Call `forge_health`. If not reachable → stop, tell the user to start the backend (or pick the URL it detected). If `auth.signed_in` is false → `forge_auth_login` (say a browser window opens), then `forge_health` again. Read `auth.probe.outcome`: `accepted` → continue; `authenticated_not_provisioned` → the account has no IAM user in this backend yet — the developer opens the Portal frontend against it once; do not re-sign-in; `rejected` → `forge_auth_login(force: true)`, and stop if still rejected. Note `openapi.path`.
 
 ### 2. Discover
 If a spec is served, call `forge_openapi` with `filter` for the area under test (e.g. `core-data`, `attachments`, `data-views`). Use it to confirm exact paths and declared response codes; declared ≠ observed, so still probe.

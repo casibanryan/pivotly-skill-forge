@@ -17,7 +17,7 @@ Turn a skill that is honest about what it does not know into one that knows. Nev
 ## Inputs
 - A SKILL.md produced by `doc-to-skill` (or any skill) containing `UNKNOWN — not in docs` markers and/or a **Not covered by source docs** section.
 - Access to some or all of: the backend checkout, the running backend, the Google Drive connector.
-- Call `forge_config_status` before dispatching. It reports which of those are reachable; anything missing is collected by asking the user (the **forge-setup** skill), never by telling them to set an environment variable. Collect only what the classified gaps actually need — a run that is entirely Drive-sourced needs none of it.
+- Call `forge_config_status` before dispatching. It reports the sign-in state, backend URL, and checkout path; anything missing is collected when a stage needs it (the **forge-setup** skill: `forge_auth_login` for the API, `forge_config_collect` for the checkout path), never by telling the user to set an environment variable. Collect only what the classified gaps actually need — a run that is entirely Drive-sourced needs none of it.
 
 ## Procedure
 
@@ -40,7 +40,8 @@ Show the classification table. Let the user drop or reassign gaps.
 
 ### 3. Preflight
 - Call `forge_git_state`. If not on `main` or behind origin, stop and ask the user to switch/pull (or explicitly confirm mining a non-main branch). Record branch + commit for provenance.
-- Call `forge_health`. If the backend is down, run only `codebase-mine` and `drive-collect` gaps now; list `api-verify` gaps as deferred.
+- Call `forge_health`. If the backend is down, run only `codebase-mine` and `drive-collect` gaps now; list `api-verify` gaps as deferred. If it is up but `auth.signed_in` is false and live gaps exist, call `forge_auth_login` (one-time browser sign-in) before dispatching them.
+- Bound the loop: at most two classify → dispatch → regenerate passes, or stop earlier when a pass closes nothing new. What is still unknown after that needs a person or a document, not a third pass.
 
 ### 4. Run source skills, one gap batch at a time
 - Follow `codebase-mine` for code gaps, `api-verify` for live gaps, `drive-collect` for document gaps. Batch gaps by source so each skill runs once.

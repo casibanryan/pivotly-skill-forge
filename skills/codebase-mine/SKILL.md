@@ -16,7 +16,7 @@ Read the backend to answer contract questions the docs left open. Read-only: nev
 
 ## Preflight (always)
 1. Call `forge_git_state`. If `ready` is false, relay each reminder to the user and wait: switch to `main`, `git pull`, or explicitly confirm mining the current branch. Record `branch` and `last_commit` for provenance.
-2. If it reports that no backend repo path is stored, ask the user for the absolute path to their checkout and store it with `forge_config_set(backend_path)` — see the **forge-setup** skill. Never ask them to set an environment variable. Then re-run `forge_git_state`.
+2. If it reports that no backend repo path is stored, prompt for it with `forge_config_collect(keys: ["backend_path"])` — one input field in the host UI (see the **forge-setup** skill). Never ask them to set an environment variable. Then re-run `forge_git_state`. No sign-in is needed to mine the repo.
 
 ## Where to look — layer map
 Search in this order; each layer answers different questions. Use grep/glob on the checkout; do not read whole directories.

@@ -21,7 +21,7 @@ reference docs + tool docs ─► read & extract ─► write SKILL.md ─► qu
 
 Many real docs are **mixed** — one file containing both. Run both extraction checklists on it.
 
-If a file is uploaded but not in context, read it with the appropriate reader before proceeding. Never infer content from a filename.
+If a file is uploaded but not in context, read it with the appropriate reader before proceeding. Never infer content from a filename. Sources may also be a **local folder or file path** (read the files directly; the same path can be re-read on a later run, so nothing needs re-uploading) or **Google Drive documents** collected by `drive-collect`.
 
 ## Step 1 — Read and inventory
 
@@ -106,7 +106,11 @@ Check before delivering. Each check exists because the model using the skill wil
 
 ## Step 5 — Deliver
 
-Write to `/mnt/user-data/outputs/<skill-name>/SKILL.md` and present it. In the reply, give the user: what the skill covers, the gaps found, and which additional documents would close them. Offer to regenerate when they supply more.
+Write `<output-dir>/<skill-name>/SKILL.md`. Output dir: inside a repo that already has a `skills/` directory → `skills/`; otherwise the current project root; on hosts with a dedicated outputs folder (Cowork: `/mnt/user-data/outputs/`) → that folder. Ask once if none of these is obvious.
+
+Alongside it, write `SOURCES.md`: every source document with title, version/date, and origin (upload, local path with sha256, or Drive link and modified date). Do **not** copy the raw source files into the skill folder — `references/` is only for distilled material the SKILL.md explicitly points to. Provenance goes in `SOURCES.md`, not in the skill body.
+
+Present the result. In the reply, give the user: what the skill covers, the gaps found, and which additional documents would close them. Offer to regenerate when they supply more (the `close-gaps` skill fills gaps from the backend repo, the running API, and Drive).
 
 ## Edge cases
 
